@@ -31,6 +31,9 @@ def test_five_videos_under_hard_cap_and_restart(client, tmp_path):
     result = client.post(f"/commands/{key}/run", headers=HEADERS).json()
     assert result["status"] == "previews_ready"
     assert len(result["videos"]) == 5
+    assert all(
+        v["workflow"]["metadata"]["prompt_version"] == "command-v1" for v in result["videos"]
+    )
     hashes = {v["workflow"]["steps"][2]["result"]["sha256"] for v in result["videos"]}
     assert len(hashes) == 5
     assert {v["workflow"]["steps"][-1]["status"] for v in result["videos"]} == {"pending"}

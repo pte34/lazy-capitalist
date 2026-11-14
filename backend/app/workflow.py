@@ -98,7 +98,7 @@ class Workflow:
             "revenue": None,
             "metadata": {
                 "model": metadata["model"] if metadata else "unknown",
-                "prompt_version": "concept-v1",
+                "prompt_version": metadata["prompt_version"] if metadata else "unknown",
                 "baseline": "concept-v1",
                 "format": "9:16",
                 "hook": (job["result"] or {}).get("hook"),
