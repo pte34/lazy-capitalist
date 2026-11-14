@@ -1,0 +1,14 @@
+# Lazy Capitalist
+- Phase 1 only: Python/FastAPI, Next.js/TypeScript, mock AI by default.
+- Read README.md and ARCHITECTURE.md before changing interfaces.
+- Preserve owner control. Never deploy, publish content, create paid resources, increase spending limits, merge PRs, delete important data, or change security policies without owner approval.
+- No live paid API calls in tests. No secrets in commits, logs, browser bundles or fixtures.
+- Use dedicated feature branches and prepare PRs; never merge without approval.
+- Keep changes modular and small. No agent frameworks or microservices without a concrete need.
+- Backend: `cd backend && uv sync --locked && uv run pytest && uv run ruff check . && uv run ruff format --check .`.
+- Frontend: `cd frontend && npm ci && npm run lint && npm run build && npm run typecheck`.
+- Database: run migrations and tests/database.sql against disposable PostgreSQL 17 with anon/authenticated roles; RLS is deny-by-default, no browser access yet.
+- API runtime uses SQLite for local execution only; Supabase schema is prepared, not a connected adapter. Do not claim a Supabase deployment.
+- Clearly mark demo metrics, mock costs, estimated costs, reserved costs and actual revenue. Keep USD costs separate from CHF figures.
+- Document test evidence and remaining gaps. Never fabricate integrations, test results or deployments.
+- Keep this file compact (under 8,000 characters).

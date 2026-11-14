@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+!.env.production.example
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+.next/
+*.tsbuildinfo
+data/
+*.db
+work/
+.vercel/
+supabase/.temp/
