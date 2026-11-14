@@ -1,6 +1,8 @@
+import asyncio
 import hmac
 import json
 import logging
+from contextlib import asynccontextmanager
 from typing import Annotated
 from uuid import uuid4
 
@@ -11,6 +13,7 @@ from pydantic import BaseModel, StringConstraints
 from app.config import Settings
 from app.oauth import register_oauth
 from app.providers import MockProvider, OpenAIProvider, Provider
+from app.reporting import register_reporting
 from app.store import Store
 from app.workflow import Workflow, register_routes
 
@@ -30,13 +33,51 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
     provider = provider or (
         MockProvider() if settings.ai_provider == "mock" else OpenAIProvider(settings)
     )
-    app = FastAPI(title="Lazy Capitalist", version="0.1.0")
+
+    @asynccontextmanager
+    async def lifespan(application):
+        async def scheduled():
+            while True:
+                try:
+                    await asyncio.to_thread(reports.tick)
+                except Exception:
+                    logger.warning('{"event":"local_report_tick_failed"}')
+                await asyncio.sleep(60)
+
+        task = asyncio.create_task(scheduled()) if settings.reporting_scheduler_enabled else None
+        try:
+            yield
+        finally:
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+    app = FastAPI(lifespan=lifespan, title="Lazy Capitalist", version="0.1.0")
 
     def authorize(authorization: str | None = Header(default=None)):
         if settings.api_token and not hmac.compare_digest(
             authorization or "", f"Bearer {settings.api_token.get_secret_value()}"
         ):
             raise HTTPException(401, "Unauthorized")
+
+    reports = register_reporting(app, settings, store, authorize)
+
+    @app.exception_handler(HTTPException)
+    async def known_error(request: Request, exc: HTTPException):
+        if exc.status_code == 402:
+            with store.connect() as db:
+                db.execute("INSERT INTO audit_events(action) VALUES('budget_blocked')")
+        if exc.status_code in (402, 502):
+            try:
+                reports.tick(alerts_only=True)
+            except Exception:
+                logger.warning('{"event":"report_alert_processing_failed"}')
+        return JSONResponse(
+            status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers
+        )
 
     @app.exception_handler(Exception)
     async def unexpected(request: Request, exc: Exception):

@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     environment: Literal["local", "production"] = "local"
     database_path: str = "data/lazy-capitalist.db"
     api_token: SecretStr | None = None
+    reporting_scheduler_enabled: bool = True
     youtube_enabled: bool = False
     youtube_token_key: SecretStr | None = None
     youtube_client_id: str = ""

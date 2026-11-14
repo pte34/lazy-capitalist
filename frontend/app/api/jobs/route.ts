@@ -27,7 +27,7 @@ async function proxy(request: NextRequest) {
     const body = request.method === "GET" ? "" : await request.text();
     const path = request.nextUrl.searchParams.get("path") || "/jobs";
     if (
-      !/^\/(finance|jobs(?:\/[a-f0-9-]+(?:\/(?:workflow|run|approval|reconcile|video))?)?|system(?:\/pause)?)$/.test(
+      !/^\/(reports(?:\/(?:settings|run|test|deliveries))?|finance|jobs(?:\/[a-f0-9-]+(?:\/(?:workflow|run|approval|reconcile|video))?)?|system(?:\/pause)?)$/.test(
         path,
       )
     )

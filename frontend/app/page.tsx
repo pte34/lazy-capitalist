@@ -1,4 +1,5 @@
 "use client";
+import Reports from "./reports";
 import Studio from "./studio";
 import Link from "next/link";
 import { useRef, useState } from "react";
@@ -274,6 +275,7 @@ export default function Home() {
             </section>
           )}
           <Studio />
+          <Reports />
           <footer>
             <span>LAZY CAPITALIST</span>
             <span>Owner controlled. Built to grow.</span>
