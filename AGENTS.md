@@ -1,0 +1,18 @@
+# Lazy Capitalist
+- Local MVP: Python/FastAPI, Next.js/TypeScript, mock AI and simulated private uploads by default. FFmpeg is required for local rendering.
+- Read README.md and ARCHITECTURE.md before changing interfaces.
+- Preserve owner control. Never deploy, publish content, create paid resources, increase spending limits, merge PRs, delete important data, or change security policies without owner approval.
+- No live paid API calls in tests. No secrets in commits, logs, browser bundles or fixtures.
+- Use dedicated feature branches and prepare PRs; never merge without approval.
+- Keep changes modular and small. No agent frameworks or microservices without a concrete need.
+- Backend: `cd backend && uv sync --locked && uv run pytest && uv run ruff check . && uv run ruff format --check .`.
+- Frontend: `cd frontend && npm ci && npm run lint && npm run build && npm run typecheck`.
+- Database: run migrations and tests/database.sql against disposable PostgreSQL 17 with anon/authenticated roles; RLS is deny-by-default, no browser access yet.
+- Runtime: explicit DATABASE_MODE=sqlite or postgres. PostgreSQL uses private lc_runtime with shared business logic and explicit migrations; never fall back or claim a Supabase deployment. See docs/POSTGRES_RUNTIME.md.
+- Use db.begin(resource) for admission/claims, not raw BEGIN IMMEDIATE. Keep HTTP outside DB transactions; preserve currency locks, fencing tokens and approved-artifact checks.
+- PG verification: PG_TEST_ADMIN_URL on isolated loopback test server, `cd backend && uv run pytest tests_pg`; source imports are synthetic, explicit, read-only and insert-only.
+- Clearly mark demo metrics, mock costs, estimated costs, reserved costs and actual revenue. Keep USD costs separate from CHF figures.
+- Document test evidence and remaining gaps. Never fabricate integrations, test results or deployments.
+- Keep this file compact (under 8,000 characters).
+- Completion reports: use the eight-section copyable `LAZY CAPITALIST – CODEX HANDOFF` convention documented in docs/STATUS.md; retain these development instructions.
+- Live YouTube stays disabled; local OAuth callback is mock-tested and real uploads remain unwired; never run OAuth, token operations or uploads without explicit authorization. See docs/YOUTUBE.md for protected state and reconciliation requirements.
