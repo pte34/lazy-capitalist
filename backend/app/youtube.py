@@ -15,6 +15,7 @@ import httpx
 from cryptography.fernet import Fernet
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
+from app.platforms import publication_guard
 from app.store import Store
 
 # httpx INFO logs include capability-bearing resumable URLs. Never emit them.
@@ -254,6 +255,8 @@ class YouTube:
     def upload(self, job_id, video, privacy, *, metadata=None, approval=None):
         if privacy != "private" or metadata is None or approval is None:
             raise Blocked("Private metadata and artifact approval required")
+        with self.store.connect() as db:
+            publication_guard(db, job_id)
         payload = Metadata.model_validate(metadata).payload()
         # Read once: uploaded bytes and approved hash must describe the same immutable snapshot.
         if video.stat().st_size > 32 * 1024 * 1024:
@@ -313,6 +316,8 @@ class YouTube:
             self.vault.write(db, name, attempt)
             db.execute("INSERT INTO audit_events(action) VALUES(?)", ("youtube_real_attempt",))
         try:
+            with self.store.connect() as db:
+                publication_guard(db, job_id)
             token = self.access_token()
             headers = {"Authorization": "Bearer " + token}
             if not attempt.get("session"):
@@ -362,6 +367,7 @@ class YouTube:
                     raise Blocked("Upload offset ambiguous")
             with self.store.connect() as db:
                 self.paused(db)
+                publication_guard(db, job_id)
             response = self.request(
                 "PUT",
                 attempt["session"],

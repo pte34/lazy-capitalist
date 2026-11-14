@@ -206,11 +206,13 @@ class Reporting:
             alerts = []
             if prefs.immediate_alerts:
                 rows = db.execute(
-                    "SELECT * FROM audit_events WHERE (action='budget_blocked' OR action='job_failed' OR action IN ('quality_failed','media_failed','render_failed','preview_failed','upload_failed')) AND id NOT IN (SELECT event_id FROM report_alerts) AND created_at>=? ORDER BY id LIMIT 100",
+                    "SELECT * FROM audit_events WHERE (action='budget_blocked' OR action='job_failed' OR action LIKE 'platform_critical:%' OR action LIKE 'platform_upload_error:%' OR action IN ('quality_failed','media_failed','render_failed','preview_failed','upload_failed')) AND id NOT IN (SELECT event_id FROM report_alerts) AND created_at>=? ORDER BY id LIMIT 100",
                     (stamp(now - timedelta(days=7)),),
                 ).fetchall()
                 for row in rows:
                     category = "budget" if row["action"] == "budget_blocked" else "job_error"
+                    if row["action"].startswith(("platform_critical:", "platform_upload_error:")):
+                        category = ":".join(row["action"].split(":")[:3])
                     db.execute(
                         "INSERT INTO report_alerts VALUES(?,?,?)",
                         (row["id"], category, row["created_at"]),
@@ -220,9 +222,13 @@ class Reporting:
                     ).fetchone()
                     if last and now.timestamp() - last[0] < 3600:
                         continue
-                    alerts.append(
-                        {"category": category, "event_id": row["id"], "job_id": row["job_id"]}
-                    )
+                    alert = {"category": category, "event_id": row["id"], "job_id": row["job_id"]}
+                    if row["action"].startswith(("platform_critical:", "platform_upload_error:")):
+                        detail = db.execute(
+                            "SELECT payload FROM platform_events WHERE audit_id=?", (row["id"],)
+                        ).fetchone()
+                        alert["platform_event"] = json.loads(detail[0]) if detail else None
+                    alerts.append(alert)
                     db.execute(
                         "INSERT OR REPLACE INTO report_cooldowns VALUES(?,?)",
                         (category, now.timestamp()),

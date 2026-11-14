@@ -13,6 +13,7 @@ from pydantic import BaseModel, StringConstraints
 from app.commands import register_commands
 from app.config import Settings
 from app.oauth import register_oauth
+from app.platforms import register_platforms
 from app.providers import MockProvider, OpenAIProvider, Provider
 from app.reporting import register_reporting
 from app.store import Store
@@ -65,6 +66,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
             raise HTTPException(401, "Unauthorized")
 
     reports = register_reporting(app, settings, store, authorize)
+    register_platforms(app, settings, store, reports, authorize)
 
     @app.exception_handler(HTTPException)
     async def known_error(request: Request, exc: HTTPException):

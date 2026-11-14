@@ -1,5 +1,6 @@
 "use client";
 import CommandCenter from "./command-center";
+import Platforms from "./platforms";
 import Reports from "./reports";
 import Studio from "./studio";
 import Link from "next/link";
@@ -277,6 +278,7 @@ export default function Home() {
           )}
           <CommandCenter />
           <Studio />
+          <Platforms />
           <Reports />
           <footer>
             <span>LAZY CAPITALIST</span>

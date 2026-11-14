@@ -9,6 +9,7 @@ from fastapi import Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from app.platforms import publication_guard
 from app.rendering import LocalRenderer, Storyboard
 from app.store import Store
 from app.youtube import Metadata, fingerprint
@@ -126,6 +127,8 @@ class Workflow:
                 ).fetchone()
                 if current["status"] == "succeeded":
                     continue
+                if name == "upload":
+                    publication_guard(db, job_id)
                 if current["status"] == "running":
                     raise HTTPException(409, "Step outcome uncertain; reconcile before retry")
                 if current["attempts"] >= 3 or current["next_retry"] > time.time():
@@ -228,6 +231,8 @@ class Workflow:
                         (job_id,),
                     ).fetchone()[0]
                 )
+            with self.store.connect() as db:
+                publication_guard(db, job_id)
             metadata = self.upload_metadata(job, approved)
             if approved.get("artifact") != fingerprint(
                 video, Metadata.model_validate(metadata).payload()
