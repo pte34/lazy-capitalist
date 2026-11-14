@@ -1,0 +1,341 @@
+"""Durable local MVP steps. No network rendering or publishing is enabled."""
+
+import hashlib
+import json
+import subprocess
+import time
+from pathlib import Path
+from typing import Literal, Protocol
+
+from fastapi import Depends, HTTPException
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
+
+from app.store import Store
+
+STEPS = ("quality", "media", "render", "preview", "approval", "upload")
+
+
+class Renderer(Protocol):
+    def render(self, job_id: str, destination: Path) -> dict: ...
+
+
+class Publisher(Protocol):
+    def upload(self, job_id: str, video: Path, privacy: Literal["private"]) -> dict: ...
+
+
+class LocalRenderer:
+    def render(self, job_id, destination):
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.with_suffix(".tmp.mp4")
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-y",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=0x275e46:s=360x640:r=12:d=10",
+                "-vf",
+                "drawtext=text='SIMULATED MEDIA':fontcolor=white:fontsize=24:x=(w-tw)/2:y=h/2",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                str(temporary),
+            ],
+            check=True,
+            timeout=60,
+            capture_output=True,
+        )
+        temporary.replace(destination)
+        return {
+            "simulation": True,
+            "duration_seconds": 10,
+            "format": "9:16",
+            "sha256": hashlib.sha256(destination.read_bytes()).hexdigest(),
+            "description": "Synthetic test slate; no narration or final content video",
+        }
+
+
+class SimulatedYouTube:
+    def upload(self, job_id, video, privacy):
+        if privacy != "private":
+            raise ValueError("Public publishing disabled")
+        return {
+            "simulation": True,
+            "privacy": "private",
+            "receipt": f"simulated:{job_id}",
+            "youtube_video_id": None,
+            "url": None,
+        }
+
+
+class Approval(BaseModel):
+    approved: bool
+    privacy: Literal["private"] = "private"
+
+
+class CostReconciliation(BaseModel):
+    actual_usd: float = Field(ge=0, allow_inf_nan=False)
+    billing_reference: str = Field(min_length=3, max_length=200)
+
+
+class Pause(BaseModel):
+    paused: bool
+
+
+class Workflow:
+    def __init__(
+        self, store: Store, renderer: Renderer | None = None, publisher: Publisher | None = None
+    ):
+        self.store = store
+        self.renderer = renderer or LocalRenderer()
+        self.publisher = publisher or SimulatedYouTube()
+        self.assets = Path(store.path).parent / "videos"
+
+    def snapshot(self, job_id):
+        job = self.store.job(job_id)
+        if not job:
+            raise HTTPException(404, "Job not found")
+        with self.store.connect() as db:
+            for name in STEPS:
+                db.execute(
+                    "INSERT OR IGNORE INTO workflow_steps(job_id,name) VALUES(?,?)", (job_id, name)
+                )
+            rows = db.execute("SELECT * FROM workflow_steps WHERE job_id=?", (job_id,)).fetchall()
+            paused = bool(db.execute("SELECT paused FROM system_state WHERE id=1").fetchone()[0])
+        with self.store.connect() as db:
+            metadata = db.execute(
+                "SELECT model,prompt_version FROM job_metadata WHERE job_id=?", (job_id,)
+            ).fetchone()
+        by_name = {row["name"]: dict(row) for row in rows}
+        for row in by_name.values():
+            row["result"] = json.loads(row["result"]) if row["result"] else None
+        return {
+            "job": job,
+            "steps": [by_name[name] for name in STEPS],
+            "paused": paused,
+            "simulation": True,
+            "performance": None,
+            "revenue": None,
+            "metadata": {
+                "model": metadata["model"] if metadata else "unknown",
+                "prompt_version": "concept-v1",
+                "baseline": "concept-v1",
+                "format": "9:16",
+                "hook": (job["result"] or {}).get("hook"),
+                "script_duration_seconds": (job["result"] or {}).get("duration_seconds"),
+            },
+        }
+
+    def run(self, job_id):
+        snapshot = self.snapshot(job_id)
+        if snapshot["job"]["status"] != "succeeded":
+            raise HTTPException(
+                409, "Script must succeed first; ambiguous paid calls need reconciliation"
+            )
+        for step in snapshot["steps"]:
+            name = step["name"]
+            if name == "approval" and step["status"] != "succeeded":
+                break
+            with self.store.connect() as db:
+                db.execute("BEGIN IMMEDIATE")
+                if db.execute("SELECT paused FROM system_state WHERE id=1").fetchone()[0]:
+                    raise HTTPException(423, "System paused")
+                current = db.execute(
+                    "SELECT * FROM workflow_steps WHERE job_id=? AND name=?", (job_id, name)
+                ).fetchone()
+                if current["status"] == "succeeded":
+                    continue
+                if current["status"] == "running":
+                    raise HTTPException(409, "Step outcome uncertain; reconcile before retry")
+                if current["attempts"] >= 3 or current["next_retry"] > time.time():
+                    raise HTTPException(409, "Retry limit reached or backoff active")
+                db.execute(
+                    "UPDATE workflow_steps SET status='running', attempts=attempts+1, updated=? "
+                    "WHERE job_id=? AND name=?",
+                    (time.time(), job_id, name),
+                )
+            try:
+                result = self.execute(job_id, name, snapshot["job"])
+            except Exception:
+                with self.store.connect() as db:
+                    db.execute(
+                        "UPDATE workflow_steps SET status='failed',error=?,next_retry=? "
+                        "WHERE job_id=? AND name=?",
+                        (
+                            "Local step failed; verify FFmpeg and quality report",
+                            time.time() + 2 ** (current["attempts"] + 1),
+                            job_id,
+                            name,
+                        ),
+                    )
+                    db.execute(
+                        "INSERT INTO audit_events(job_id,action) VALUES(?,?)",
+                        (job_id, f"{name}_failed"),
+                    )
+                raise HTTPException(502, f"{name} failed; retry after backoff") from None
+            with self.store.connect() as db:
+                db.execute(
+                    "UPDATE workflow_steps SET status='succeeded',result=?,error=NULL "
+                    "WHERE job_id=? AND name=?",
+                    (json.dumps(result), job_id, name),
+                )
+                db.execute(
+                    "INSERT INTO audit_events(job_id,action) VALUES(?,?)",
+                    (job_id, f"{name}_succeeded"),
+                )
+        return self.snapshot(job_id)
+
+    def execute(self, job_id, name, job):
+        concept = job["result"]
+        if name == "quality":
+            sentences = [s.strip().lower() for s in concept["script"].split(".") if s.strip()]
+            repeated = len(sentences) != len(set(sentences))
+            # Heuristics are advisory; never claim automated factual verification.
+            return {
+                "repeated_sentences": repeated,
+                "fact_check": "unknown",
+                "original_value": "owner_review_required",
+                "requires_owner_review": True,
+                "claims": "No source verification available",
+                "hook": concept["hook"],
+            }
+        if name == "media":
+            return {
+                "simulation": True,
+                "source": "locally generated color slate",
+                "rights": "Generated synthetic background; no third-party media",
+                "license": "No external media license required",
+                "attribution": None,
+            }
+        video = self.assets / f"{job_id}.mp4"
+        if name == "render":
+            return self.renderer.render(job_id, video)
+        if name == "preview":
+            if not video.is_file():
+                raise ValueError("Missing preview")
+            return {"preview": f"/jobs/{job_id}/video", "simulation": True}
+        if name == "upload":
+            return self.publisher.upload(job_id, video, "private")
+        raise ValueError("Unsupported step")
+
+
+def register_routes(app, workflow, authorize):
+    protected = [Depends(authorize)]
+
+    @app.post("/jobs/{job_id}/cost-reconciliation", dependencies=protected)
+    def cost_reconciliation(job_id: str, body: CostReconciliation):
+        job = workflow.store.job(job_id)
+        if not job:
+            raise HTTPException(404, "Job not found")
+        if job["status"] == "running" or job["provider"] == "mock":
+            raise HTTPException(409, "Cannot reconcile running or mock usage")
+        with workflow.store.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute(
+                "UPDATE ai_usage SET cost_usd=?,cost_kind='actual' WHERE job_id=?",
+                (body.actual_usd, job_id),
+            )
+            db.execute(
+                "INSERT INTO audit_events(job_id,action) VALUES(?,?)",
+                (job_id, "owner_billing_reconciled:" + body.billing_reference),
+            )
+        return {
+            "actual_usd": body.actual_usd,
+            "source": "owner_supplied_billing",
+            "verified_by_provider": False,
+        }
+
+    @app.get("/system", dependencies=protected)
+    def system():
+        with workflow.store.connect() as db:
+            return {
+                "paused": bool(
+                    db.execute("SELECT paused FROM system_state WHERE id=1").fetchone()[0]
+                )
+            }
+
+    @app.post("/system/pause", dependencies=protected)
+    def pause(body: Pause):
+        with workflow.store.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute("UPDATE system_state SET paused=? WHERE id=1", (body.paused,))
+            db.execute(
+                "INSERT INTO audit_events(action) VALUES(?)",
+                ("paused" if body.paused else "resumed",),
+            )
+        return {"paused": body.paused}
+
+    @app.get("/jobs/{job_id}/workflow", dependencies=protected)
+    def state(job_id: str):
+        return workflow.snapshot(job_id)
+
+    @app.post("/jobs/{job_id}/run", dependencies=protected)
+    def run(job_id: str):
+        return workflow.run(job_id)
+
+    @app.post("/jobs/{job_id}/approval", dependencies=protected)
+    def approve(job_id: str, body: Approval):
+        state = workflow.snapshot(job_id)
+        if any(s["status"] != "succeeded" for s in state["steps"][:4]):
+            raise HTTPException(409, "Preview and quality checks required")
+        with workflow.store.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if (
+                db.execute(
+                    "SELECT status FROM workflow_steps WHERE job_id=? AND name='upload'", (job_id,)
+                ).fetchone()[0]
+                != "pending"
+            ):
+                raise HTTPException(409, "Upload already started")
+            db.execute(
+                "UPDATE workflow_steps SET status=?,result=? WHERE job_id=? AND name='approval'",
+                (
+                    "succeeded" if body.approved else "pending",
+                    json.dumps({"owner_reviewed": body.approved, "privacy": "private"}),
+                    job_id,
+                ),
+            )
+            db.execute(
+                "INSERT INTO audit_events(job_id,action) VALUES(?,?)",
+                (job_id, "approved_private" if body.approved else "approval_revoked"),
+            )
+        return workflow.snapshot(job_id)
+
+    @app.post("/jobs/{job_id}/reconcile", dependencies=protected)
+    def reconcile(job_id: str):
+        workflow.snapshot(job_id)
+        # Only deterministic local/simulated operations may be reset. No real upload adapter exists.
+        with workflow.store.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            active = db.execute(
+                "SELECT * FROM workflow_steps WHERE job_id=? AND status='running'", (job_id,)
+            ).fetchall()
+            if any(time.time() - row["updated"] < 120 for row in active):
+                raise HTTPException(409, "Step may still be active")
+            db.execute(
+                "UPDATE workflow_steps SET status='failed',error='Interrupted local operation' "
+                "WHERE job_id=? AND status='running'",
+                (job_id,),
+            )
+            db.execute(
+                "INSERT INTO audit_events(job_id,action) VALUES(?,?)", (job_id, "local_reconciled")
+            )
+        return workflow.snapshot(job_id)
+
+    @app.get("/jobs/{job_id}/video", dependencies=protected)
+    def video(job_id: str):
+        state = workflow.snapshot(job_id)
+        if state["steps"][2]["status"] != "succeeded":
+            raise HTTPException(404, "Preview not ready")
+        path = workflow.assets / f"{state['job']['id']}.mp4"
+        if not path.is_file():
+            raise HTTPException(404, "Preview artifact missing")
+        return FileResponse(path, media_type="video/mp4")

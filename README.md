@@ -2,7 +2,7 @@
 
 **Let AI work. Let money flow.**
 
-Phase 1 foundation for owner-controlled short-form content automation. Working local mock generation; no video rendering, publishing, revenue integrations, deployment or paid calls.
+Phase 1 foundation for owner-controlled short-form content automation. Working local mock generation; no production video provider, real publishing, revenue integrations, deployment or paid calls. Local synthetic FFmpeg previews are available.
 
 ## Run locally
 
@@ -68,3 +68,24 @@ Backend secrets stay server-side. Production backend requires API_TOKEN (32+ cha
 No free-tier capacity or CHF 0 production operation is guaranteed. The current local mock system needs no paid credentials. Architecture and extension boundaries are in ARCHITECTURE.md; future scope is in ROADMAP.md.
 
 Optional browser smoke test: with backend :8000, `npm run dev` on :3000 and `npm run start -- --hostname 127.0.0.1 --port 3001` (after build), run `uv run --with playwright python -m playwright install chromium`, then `uv run --with playwright python tests/smoke_dashboard.py` from the repository root. Use only the mock provider. This checks form submission, navigation, mobile overflow and production write protection; screenshots go to ignored `work/`.
+
+## Local private-video MVP
+
+Install FFmpeg (including libx264 and drawtext) before running the backend. No new hosting or subscriptions are needed. Existing databases gain additive SQLite tables automatically; existing scripts/jobs are retained. The original Supabase migration is unchanged and is **not** a runtime adapter for these local tables.
+
+In the dashboard, generate a topic, open **Lokales Video-Teststudio**, refresh the queue, select a job, and run it. The workflow saves quality review → synthetic media provenance → FFmpeg test MP4 → preview. Inspect the preview and quality results, approve privately, then run again for a **simulated** private YouTube receipt. There is no actual YouTube upload, audio narration or finished content video. The synthetic slate intentionally does not represent a completed script-based production video.
+
+API (same bearer protection as existing jobs):
+- `GET /jobs/{id}/workflow`, `POST /jobs/{id}/run`
+- `GET /jobs/{id}/video`, `POST /jobs/{id}/approval` with `{"approved":true,"privacy":"private"}`
+- `POST /jobs/{id}/reconcile` for interrupted local steps after 120 seconds
+- `GET /system`, `POST /system/pause` with `{"paused":true}`
+- `POST /jobs/{id}/cost-reconciliation` with owner-supplied `actual_usd` and `billing_reference`; this is manual invoice reconciliation, not provider verification.
+
+Paid job creation requires `Idempotency-Key` (missing keys are rejected); reuse the same key on transport retries. Conflicting topics are rejected. The form reuses a key for repeated submissions of the same topic. Submission keys, per-step claims, outputs and attempts persist. Each step allows at most three attempts with 2/4/8-second persisted backoffs; call run again after the wait. Completed steps are skipped. A running step blocks retries until reconciliation; only deterministic local/mock steps can currently be recovered. Paid script failures keep their reservation and cannot be automatically retried. Never enable a real external adapter until status reconciliation is implemented for it. Pause blocks new admissions/step claims; actions admitted before pause can finish.
+
+Paid AI requires positive JOB_BUDGET_USD, DAILY_BUDGET_USD, MONTHLY_BUDGET_USD and LIFETIME_BUDGET_USD, in addition to the existing configuration. All remain zero by default. Reservations and calendar-day/month sums use UTC and the same atomic SQLite write transaction. Successful paid calls retain at least their reservation until manual invoice reconciliation; token-based estimates are reported separately. Ambiguous failures retain their full reservation. Actual costs exceeding limits block further reservations; limits are never increased automatically. Local rendering and simulated uploads make no paid API calls. Provider billing and additional billing categories still require owner verification.
+
+Quality checks currently flag repeated sentences and require owner review for unsupported claims and original value. They do not fact-check or guarantee platform-policy compliance. Model, prompt version, hook, script length, test format and cost records persist; `concept-v1` is the baseline identifier, with no automatic prompt/code changes. Performance and revenue remain unknown.
+
+Browser verification for the studio: with backend :8000 and dashboard dev server :3000, run `uv run --with playwright python tests/smoke_private_mvp.py` after installing Chromium as described above.

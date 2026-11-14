@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     openai_model: str = "gpt-4.1-mini"
     # USD, independently configured; CHF conversion is deliberately not implied.
+    job_budget_usd: float = 0
+    daily_budget_usd: float = 0
+    monthly_budget_usd: float = 0
     lifetime_budget_usd: float = 0
     request_reservation_usd: float = 0
     input_usd_per_million: float = 0
@@ -23,6 +26,9 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_environment(self):
         values = (
+            self.job_budget_usd,
+            self.daily_budget_usd,
+            self.monthly_budget_usd,
             self.lifetime_budget_usd,
             self.request_reservation_usd,
             self.input_usd_per_million,

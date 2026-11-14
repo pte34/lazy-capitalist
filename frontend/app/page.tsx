@@ -1,6 +1,7 @@
 "use client";
+import Studio from "./studio";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type Job = {
   id: string;
@@ -32,14 +33,20 @@ export default function Home() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const submission = useRef({ topic: "", key: "" });
   async function generate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submission.current.topic !== topic || !submission.current.key)
+      submission.current = { topic, key: crypto.randomUUID() };
     setBusy(true);
     setNotice("");
     try {
       const response = await fetch("/api/jobs", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": submission.current.key,
+        },
         body: JSON.stringify({ topic }),
       });
       if (!response.ok)
@@ -266,6 +273,7 @@ export default function Home() {
               </p>
             </section>
           )}
+          <Studio />
           <footer>
             <span>LAZY CAPITALIST</span>
             <span>Owner controlled. Built to grow.</span>

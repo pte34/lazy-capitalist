@@ -11,6 +11,7 @@ from pydantic import BaseModel, StringConstraints
 from app.config import Settings
 from app.providers import MockProvider, OpenAIProvider, Provider
 from app.store import Store
+from app.workflow import Workflow, register_routes
 
 logger = logging.getLogger("lazy_capitalist")
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -48,18 +49,59 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
         return {"status": "ok", "provider": settings.ai_provider}
 
     @app.post("/jobs", status_code=201, dependencies=[Depends(authorize)])
-    def create_job(body: Topic):
+    def create_job(body: Topic, idempotency_key: str | None = Header(default=None, max_length=200)):
+        if settings.ai_provider == "openai" and not idempotency_key:
+            raise HTTPException(400, "Paid jobs require Idempotency-Key")
+        if idempotency_key is None:
+            idempotency_key = str(uuid4())
         job_id = str(uuid4())
         reservation = settings.request_reservation_usd if settings.ai_provider == "openai" else 0
         # Serialize budget reservation across processes; committed BEFORE any paid call.
         with store.connect() as db:
             db.execute("BEGIN IMMEDIATE")
+            if idempotency_key:
+                prior = db.execute(
+                    "SELECT * FROM submissions WHERE key=?", (idempotency_key,)
+                ).fetchone()
+                if prior:
+                    if prior["topic"] != body.topic:
+                        raise HTTPException(409, "Idempotency key belongs to another topic")
+                    return store.job(prior["job_id"])
+            if db.execute("SELECT paused FROM system_state WHERE id=1").fetchone()[0]:
+                raise HTTPException(423, "System paused")
+            if reservation:
+                for limit, cutoff in [
+                    (settings.job_budget_usd, None),
+                    (settings.daily_budget_usd, "date('now')"),
+                    (settings.monthly_budget_usd, "date('now','start of month')"),
+                ]:
+                    spent = (
+                        0
+                        if cutoff is None
+                        else db.execute(
+                            "SELECT COALESCE(SUM(u.cost_usd),0) FROM ai_usage u JOIN video_jobs j "
+                            f"ON j.id=u.job_id WHERE j.created_at >= {cutoff}"
+                        ).fetchone()[0]
+                    )
+                    if limit <= 0 or spent + reservation > limit:
+                        raise HTTPException(402, "Job/day/month budget missing or exhausted")
             total = db.execute("SELECT COALESCE(SUM(cost_usd),0) FROM ai_usage").fetchone()[0]
             if reservation and total + reservation > settings.lifetime_budget_usd:
                 raise HTTPException(402, "Lifetime AI budget exhausted")
             db.execute(
                 "INSERT INTO video_jobs(id,topic,provider,status) VALUES(?,?,?,?)",
                 (job_id, body.topic.strip(), settings.ai_provider, "running"),
+            )
+            db.execute(
+                "INSERT INTO job_metadata VALUES(?,?,?)",
+                (
+                    job_id,
+                    settings.openai_model if settings.ai_provider == "openai" else "deterministic",
+                    "concept-v1",
+                ),
+            )
+            db.execute(
+                "INSERT INTO submissions VALUES(?,?,?)", (idempotency_key, body.topic, job_id)
             )
             db.execute(
                 "INSERT INTO ai_usage(job_id,cost_usd,cost_kind) VALUES(?,?,?)",
@@ -76,11 +118,15 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                     (generation.concept.model_dump_json(), job_id),
                 )
                 db.execute(
+                    "INSERT OR REPLACE INTO cost_estimates VALUES(?,?)",
+                    (job_id, generation.cost_usd),
+                )
+                db.execute(
                     "UPDATE ai_usage SET cost_usd=?,cost_kind=?,input_tokens=?,output_tokens=? "
                     "WHERE job_id=?",
                     (
-                        generation.cost_usd,
-                        generation.cost_kind,
+                        max(reservation, generation.cost_usd),
+                        "reserved" if reservation else generation.cost_kind,
                         generation.input_tokens,
                         generation.output_tokens,
                         job_id,
@@ -131,7 +177,12 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                 "currency": "USD",
                 "costs": [dict(row) for row in rows],
                 "lifetime_budget_usd": settings.lifetime_budget_usd,
+                "job_budget_usd": settings.job_budget_usd,
+                "daily_budget_usd": settings.daily_budget_usd,
+                "monthly_budget_usd": settings.monthly_budget_usd,
+                "estimates": [dict(r) for r in db.execute("SELECT * FROM cost_estimates")],
                 "revenue": None,
             }
 
+    register_routes(app, Workflow(store), authorize)
     return app

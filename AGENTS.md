@@ -1,5 +1,5 @@
 # Lazy Capitalist
-- Phase 1 only: Python/FastAPI, Next.js/TypeScript, mock AI by default.
+- Local MVP: Python/FastAPI, Next.js/TypeScript, mock AI and simulated private uploads by default. FFmpeg is required for local rendering.
 - Read README.md and ARCHITECTURE.md before changing interfaces.
 - Preserve owner control. Never deploy, publish content, create paid resources, increase spending limits, merge PRs, delete important data, or change security policies without owner approval.
 - No live paid API calls in tests. No secrets in commits, logs, browser bundles or fixtures.

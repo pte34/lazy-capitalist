@@ -10,10 +10,10 @@
 
 ## Later, separately authorized
 - Supabase transactional runtime adapter, Auth and owner authorization
-- Durable jobs, idempotency, crash recovery and invoice reconciliation
+- Cloud scheduling and external status reconciliation (local steps/idempotency/manual billing reconciliation now implemented)
 - Owner-approved model, verified pricing and provider billing caps
 - Video provider/rendering adapters and quality checks
 - Publishing with approval gates, analytics ingestion, actual revenue reconciliation
 - Additional agents only when a simple workflow no longer suffices
 
-No Phase 2 implementation or production deployment is included.
+The owner-authorized local video test MVP is implemented. Actual YouTube OAuth/upload, final script-based video production and production deployment remain open.

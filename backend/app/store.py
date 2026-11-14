@@ -10,6 +10,16 @@ class Store:
         self.path = path
         with self.connect() as db:
             db.executescript("""
+            CREATE TABLE IF NOT EXISTS system_state (id INTEGER PRIMARY KEY CHECK(id=1), paused INTEGER NOT NULL);
+            INSERT OR IGNORE INTO system_state VALUES(1,0);
+            CREATE TABLE IF NOT EXISTS job_metadata (job_id TEXT PRIMARY KEY, model TEXT NOT NULL, prompt_version TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS cost_estimates (job_id TEXT PRIMARY KEY, estimated_usd REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS submissions (key TEXT PRIMARY KEY, topic TEXT NOT NULL, job_id TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS workflow_steps (
+              job_id TEXT NOT NULL REFERENCES video_jobs(id), name TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+              result TEXT, error TEXT, next_retry REAL NOT NULL DEFAULT 0,
+              updated REAL NOT NULL DEFAULT 0, PRIMARY KEY(job_id,name));
             CREATE TABLE IF NOT EXISTS video_jobs (
               id TEXT PRIMARY KEY, topic TEXT NOT NULL, provider TEXT NOT NULL,
               status TEXT NOT NULL, result TEXT, error TEXT,

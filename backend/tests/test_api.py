@@ -105,6 +105,9 @@ def paid_settings(settings):
         allow_paid_ai=True,
         openai_api_key="test-key",
         lifetime_budget_usd=0.1,
+        job_budget_usd=0.1,
+        daily_budget_usd=0.1,
+        monthly_budget_usd=0.1,
         request_reservation_usd=0.1,
         input_usd_per_million=1,
         output_usd_per_million=1,
@@ -117,7 +120,14 @@ def test_concurrent_reservations_cannot_overspend(settings):
     with ThreadPoolExecutor(max_workers=2) as pool:
         statuses = list(
             pool.map(
-                lambda _: client.post("/jobs", json={"topic": "Test topic"}).status_code, range(2)
+                lambda _: (
+                    client.post(
+                        "/jobs",
+                        json={"topic": "Test topic"},
+                        headers={"Idempotency-Key": str(__import__("uuid").uuid4())},
+                    ).status_code
+                ),
+                range(2),
             )
         )
     assert sorted(statuses) == [402, 502]
@@ -157,5 +167,12 @@ def test_malformed_provider_output_is_failed(settings, monkeypatch):
 
     monkeypatch.setattr(httpx, "post", post)
     client = TestClient(create_app(paid_settings(settings)))
-    assert client.post("/jobs", json={"topic": "Test topic"}).status_code == 502
+    assert (
+        client.post(
+            "/jobs",
+            json={"topic": "Test topic"},
+            headers={"Idempotency-Key": str(__import__("uuid").uuid4())},
+        ).status_code
+        == 502
+    )
     assert client.get("/finance").json()["costs"][0]["cost_kind"] == "reserved"

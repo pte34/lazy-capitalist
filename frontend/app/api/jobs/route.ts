@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-export async function POST(request: NextRequest) {
+async function proxy(request: NextRequest) {
   // A shared backend token is not user authentication. Keep write proxy local-only
   // until owner authentication is implemented; hosted previews are read-only.
   if (process.env.NODE_ENV === "production") {
@@ -15,32 +15,47 @@ export async function POST(request: NextRequest) {
     `http://localhost:${request.nextUrl.port || "3000"}`,
   ];
   if (
-    !origin ||
-    !allowedOrigins.includes(origin) ||
-    new URL(origin).host !== host
+    request.method !== "GET" &&
+    (!origin ||
+      !allowedOrigins.includes(origin) ||
+      new URL(origin).host !== host)
   ) {
     return NextResponse.json({ detail: "Invalid origin" }, { status: 403 });
   }
   const url = process.env.BACKEND_URL || "http://127.0.0.1:8000";
   try {
-    const body = await request.text();
+    const body = request.method === "GET" ? "" : await request.text();
+    const path = request.nextUrl.searchParams.get("path") || "/jobs";
+    if (
+      !/^\/(finance|jobs(?:\/[a-f0-9-]+(?:\/(?:workflow|run|approval|reconcile|video))?)?|system(?:\/pause)?)$/.test(
+        path,
+      )
+    )
+      return NextResponse.json({ detail: "Invalid path" }, { status: 400 });
     if (body.length > 2000)
       return NextResponse.json(
         { detail: "Request too large" },
         { status: 413 },
       );
-    const response = await fetch(new URL("/jobs", url), {
-      method: "POST",
+    const response = await fetch(new URL(path, url), {
+      method: request.method,
       cache: "no-store",
       signal: AbortSignal.timeout(55000),
       headers: {
         "Content-Type": "application/json",
+        ...(request.headers.get("idempotency-key")
+          ? { "Idempotency-Key": request.headers.get("idempotency-key")! }
+          : {}),
         ...(process.env.BACKEND_API_TOKEN
           ? { Authorization: `Bearer ${process.env.BACKEND_API_TOKEN}` }
           : {}),
       },
-      body,
+      body: body || undefined,
     });
+    if (response.headers.get("content-type")?.includes("video/mp4"))
+      return new NextResponse(response.body, {
+        headers: { "Content-Type": "video/mp4" },
+      });
     return NextResponse.json(await response.json(), {
       status: response.status,
     });
@@ -51,3 +66,6 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = proxy;
+export const GET = proxy;
