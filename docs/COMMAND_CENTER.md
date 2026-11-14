@@ -19,3 +19,5 @@ Links are stored only; no general URL fetcher, download or platform-video reuse 
 ## Platform scope
 
 YouTube is the only prepared live adapter and remains disabled. TikTok/Instagram are future plan destinations, not connected publishing providers. Local previews may be created for a future destination; publishing attempts are rejected. No viral reach, platform payout or income is assumed.
+
+Verification: `tests/smoke_command_center.py` creates the supported five-video command through the dashboard, edits a stored inspiration link, separately approves local production, verifies all five MP4s with ffprobe (540×960, 20 seconds and distinct hashes), checks upload steps remain pending, and exercises a synthetic warning/explicit review plus mobile layout. Outputs and representative frame are ignored under work/command-smoke/. All-in environment costs remain unknown. Budget day/month windows use UTC like the existing AI layer; reporting calendar windows remain Europe/Zurich.

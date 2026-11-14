@@ -73,3 +73,19 @@ def test_strikes_dedupe_lock_specific_channel_owner_review_and_upload_errors(tmp
     assert not any(c["channel_id"] == "error-only" for c in state["channels"])
 
 
+def test_signal_provenance_and_timezone_fail_closed():
+    import pytest
+    from pydantic import ValidationError
+
+    from app.platforms import PlatformEvent
+
+    base = dict(channel_id="test", kind="platform_warning", note="test signal")
+    with pytest.raises(ValidationError):
+        PlatformEvent(
+            **base,
+            source="mock_platform_signal",
+            verification="owner_reported",
+            occurred_at=datetime.now(UTC),
+        )
+    with pytest.raises(ValidationError):
+        PlatformEvent(**base, occurred_at=datetime(2026, 11, 14))

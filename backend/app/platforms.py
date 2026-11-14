@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import Depends, Header, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 CAPABILITIES = {
     "youtube": {
@@ -41,6 +41,12 @@ class PlatformEvent(BaseModel):
     source: Literal["owner_report", "mock_platform_signal"] = "owner_report"
     verification: Literal["owner_reported", "unverified", "mock"] = "owner_reported"
     note: str = Field(min_length=3, max_length=500)
+
+    @model_validator(mode="after")
+    def provenance_consistent(self):
+        if (self.source == "mock_platform_signal") != (self.verification == "mock"):
+            raise ValueError("Synthetic signal and verification labels must agree")
+        return self
 
     @field_validator("occurred_at")
     @classmethod

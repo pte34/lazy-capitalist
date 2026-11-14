@@ -95,3 +95,7 @@ The offline-tested real YouTube adapter library is now implemented but connected
 ## Current local additions
 
 Owner-bound Desktop OAuth callbacks are implemented but live OAuth stays disabled. See docs/YOUTUBE.md; never perform a Google login without separate approval. The local renderer now produces genuine script-dependent text scenes, without voiceover/external imagery: docs/LOCAL_VIDEO.md and examples/storyboard.json. Reports and mock notifications use the same local process and database: docs/REPORTING.md. Strong owner API_TOKEN and matching server-only BACKEND_API_TOKEN are required for reporting management. No provider messages, uploads or deployments are enabled by these additions.
+
+## Command Center and platform signals
+
+The local dashboard now plans the deterministic five-video/CHF-3 example, exposes an editable content plan, separates production from publishing approval, and renders five genuine local text videos. Trend data is explicitly synthetic; references are never automatically fetched. Unknown compute costs are not priced as zero and no all-in CHF-3 guarantee is asserted. All paid order execution is unavailable. See docs/COMMAND_CENTER.md. Manual owner platform reports and synthetic signals can lock one channel until explicit review; upload errors are not strikes. Only YouTube is prepared for future live integration; TikTok/Instagram have no publishers. See docs/PLATFORM_WARNINGS.md. Reports include commands and channel warnings while keeping CHF/USD and real/simulated outcomes separate.

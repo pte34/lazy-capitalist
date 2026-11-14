@@ -1,45 +1,45 @@
 # Status — 2026-11-14
 
-## Verified baseline and task branch
+## Current delivery and phase
 
-Started from verified clean commit 84fa8fa on feat/youtube-private-adapter, preserving 0759c77, 4f62dc3 and the empty main base. Current branch: feat/local-oauth-video-reporting. Separate commits implement A (6b1d077), B (436cf57) and C (c98ec01); Final hardening/documentation and preservation of the unrelated initial remote history follow in separate commits. Local history is additionally backed up as ignored work/*.bundle files. Use git log/status for the final local SHA and dirty state.
+Verified starting point: clean 4a01e02, feat/local-oauth-video-reporting; remote main 6ad592c (initial README), prior local bundle intact. The updated authorized GitHub connection now permits HTTPS push. Initial branch SHA 4a01e02 was confirmed remotely; Draft PR https://github.com/pte34/lazy-capitalist/pull/1 exists. No merge or deployment. Final application SHA and CI links are reported in the completion handoff; consult git log and PR Checks for latest state.
 
-## Phase status
+Phase 1 local foundation, remote repository handoff and remote CI are verified. Cloud acceptance remains OPEN: no managed deployment, PostgreSQL runtime repository, hosted owner authentication or production secret operations. Supabase migration remains the original prepared schema; new command/signal tables are local SQLite additions, not a deployed Supabase feature.
 
-Phase 1 local foundation works. Remote acceptance remains OPEN: origin/main now has confirmed initial commit 6ad592c (README only), but application commits, draft PR, remote CI, hosted auth, PostgreSQL runtime integration and deployment remain unverified. The unchanged Supabase migration was not retested in this task; prior verification remains historical evidence only.
+## Packages
 
-A — Finished within local/mocked scope: protected Desktop loopback callback, strong bearer bootstrap, hashed one-hour HttpOnly/Lax owner sessions, encrypted owner-bound ten-minute OAuth/PKCE transactions, atomic state consumption, cancellation/error handling and callback query redaction. Live OAuth remains disabled; no real authentication or upload authorized/performed. Hosted OAuth is explicitly unsupported.
+1. GitHub: refreshed access worked, preserved feature history pushed, draft PR created. CI root-parent range failure was fixed by scanning complete Git history. Backend/frontend/database/secrets jobs passed on 9bd9b6b. A later run passed 76 tests and failed only trailing formatting in a split test file; the already locally corrected file is included in the final push. Never bypassed permissions or rewrote history.
+2. Command Center: deterministic editable example, separate production approval, existing workflow/renderer reuse, durable child video IDs, pause/retries/partial completion. Five distinct real local text videos verified. No paid execution route. CHF cap and integer reservations stay separate from USD; day/month CHF limits remain zero. Unknown compute/energy costs mean no all-in CHF-3 guarantee can be certified.
+3. Content: included/excluded topics, audience/language/requested tone/duration, stored inspiration links and owner text/rights note. Constraints are enforced, references are not fetched, own text is untrusted literal data, edits invalidate approvals. Arbitrary asset import and AI style rewriting are absent by design.
+4. Platform signals: protected manual/mock entry, dedupe, source/time/verification, critical dashboard alerts and channel-specific publication gates. Upload errors are separate. No auto-unlock: explicit owner review only. Official YouTube auditDetails restrictions documented; no new scope, mailbox or scraper and no promise of complete realtime strike detection.
+5. Reporting: command/results and CHF ledger summaries, reported versus synthetic warnings/current locks, real local renders versus simulated/private/public outcomes. Unknown public publication/revenue/ROI stay unknown; UTC storage/Zurich schedules, interim snapshots, mock delivery and local-process uptime limitation retained.
+6. Platforms: shared capability registry; YouTube prepared but live disabled, TikTok/Instagram future-only without live or simulated publishers. No income assumptions.
 
-B — Finished within local scope: genuine 540×960 multi-scene text video from a validated structured script, fixed local DejaVu font and generated backgrounds. Timing/text/resource bounds, subprocess timeouts, private temporary files, ffprobe validation, content hashes and approval invalidation are implemented. Prior artifacts are retained by hash. Voiceover and external visual assets remain absent; this is not full narrated AI video production.
+## Verification and boundaries
 
-C — Finished within local/mock scope: immutable daily/weekly/monthly Zurich snapshots, equal elapsed comparison windows, Decimal USD categories, null revenue/ROI, startup/minute tick in the existing API process, seven-date catchup, idempotent reports and delivery claims, bundled mock payloads, bounded retries/recovery, masked recipient settings and alert cooldowns. Actual budget blocks and job failures generate warnings; failed notifications never recursively generate job warnings. No live message provider exists. Scheduling stops when the backend is stopped; no cloud uptime is claimed.
+77 backend tests pass locally, including CHF cap/day/month concurrency, retry costs/missing prices, restart/partial progress, content conflicts, references/approval invalidation, channel locks/dedupe/review and reporting distinctions. Python lint/format and frontend lint/build/TypeScript passed. New browser smoke checks the five-video command, reference editing, production-only approvals, five technically verified distinct 540×960/20s MP4s, pending upload steps, synthetic warning/review, report UI and mobile layout. Representative frame visually inspected: readable and inside the frame. Prior owner-cookie/OAuth, preview and reporting browser smokes remain in tests/.
 
-## Verification
+Google HTTP is mocked in tests. No live OAuth, token operation, upload, email/WhatsApp, provider pricing, paid model call or deployment. Local report delivery remains mock. Unknown environment/compute/CI billing is not claimed as zero. Existing upstream Starlette/httpx deprecation warning remains; no dependency migration attempted. Remote database job verifies original prepared SQL, not a new cloud deployment.
 
-Final backend suite: 66 passing tests. Python lint/format and frontend ESLint/build/TypeScript passed. Google HTTP was mocked; actual local FFmpeg/ffprobe was exercised. Browser smoke passed through owner bootstrap/HttpOnly cookie, disabled OAuth start/callback, script preview, report settings, mock delivery/history and mobile layout. An extracted example frame was visually inspected: centered readable text inside bounds. Gitleaks found no secrets in the staged final changes and full application diff against remote main. The existing Starlette/httpx test-client deprecation warning remains: changing clients would require an unnecessary dependency migration. No live Google, messaging, paid model, upload or cloud test occurred.
+## Owner actions and next criteria
 
-## GitHub blocker / smallest owner action
+The historical 403 blocker is resolved in this environment; no further token sharing/reinstallation is needed for this completed handoff. Owner review of Draft PR is next; no merge authorization is implied.
 
-No unchanged write attempt was repeated. A final read-only check discovered new remote main 6ad592c containing only the repository title. Its unrelated history was preserved by merge 0674093, retaining the full local README. One controlled feature-branch push after that new evidence still returned HTTP 403: Permission to pte34/lazy-capitalist.git denied to pte34. No further write attempts were made; no draft PR or remote CI could be created. Historical errors remain HTTP 403 (`Permission ... denied` and `Resource not accessible by integration`). Read-only metadata succeeded earlier; initial main 6ad592c is now confirmed, not an application deployment. gh used GH_TOKEN; no local Git helper/askpass/extraheader explained the exact HTTPS credential injection, and a proxy environment was present. Account push/admin flags do not prove this environment's token/app permissions. No credential or protection bypass is attempted.
+Priorities after review:
+1. Cloud readiness plan: concrete PostgreSQL runtime migration for all local tables, owner-auth design and managed deployment/cost choice; acceptance = reviewed adapters/migrations/auth tests, no unapproved resource activation.
+2. Local production quality: optional authored storyboard UX, caption/voiceover/image design and provenance; acceptance = reviewed artifact and explicit rights/cost basis before any external provider.
+3. Live YouTube: Desktop project/channel/quota confirmation, protected key operations and separately authorized private-only live test with uncertain-outcome reconciliation. No exactly-once promise.
+4. Live notifications and other platforms remain separate later approvals, never automatic extensions.
 
-Owner: confirm/grant this environment's repository Contents, Pull Requests and Workflows write access, or have the administrator clarify proxy write policy; never paste tokens into chat. Then perform one authorized push, create a draft PR and verify matching SHA/CI. Do not merge or deploy automatically.
+## Required future handoff
 
-## Next tasks and acceptance
-
-1. Remote handoff: scoped write access, preserved history pushed, draft PR and successful CI linked. Required for Phase 1 remote acceptance.
-2. Local content quality: improve deterministic storyboard editing/preview UX; acceptance = one reviewed script-to-scenes artifact with explicit factual/originality review and unchanged approval binding. No external provider needed.
-3. Later external readiness: review Desktop client, fixed callback, protected keys, target channel/quota and owner-approved live-test plan before any login/upload. Acceptance = separately authorized private-only live result and reconciled attempt; no exactly-once claim.
-4. Later production: PostgreSQL runtime, hosted owner auth, managed secrets/operations and deployment approval. Narration and additional visual assets require their own rights/cost review.
-
-## Required future completion convention
-
-Use exactly one copyable text block headed `LAZY CAPITALIST – CODEX HANDOFF`, with eight sections:
-1. Stand — phase/open criteria, branch, local and confirmed remote SHA, dirty state, PR/CI, deployment.
-2. In diesem Auftrag umgesetzt — functions/paths/decisions; rate A/B/C when applicable.
-3. Verifikation — actual checks/results, missing checks/reasons, mocked versus real, browser/render inspection.
-4. Funktionsstatus — functional, simulated, implemented but externally unverified, missing.
-5. Blocker und Owner-Aktionen — evidence, remaining uncertainty and smallest action.
-6. Kosten und externe Aktionen — actual writes/services/paid calls/costs; never count simulation as real.
-7. Offene Arbeiten — priorities and verifiable acceptance criteria.
-8. Nächster empfohlener Auftrag — exactly one bounded goal with prerequisites/approvals.
-Preserve AGENTS.md and owner authorization boundaries.
+Exactly one copyable block headed LAZY CAPITALIST – CODEX HANDOFF, with eight sections:
+1. Stand: phase, branch, local/confirmed remote commit, dirty state, PR and CI URL/results, deployment.
+2. Arbeitspakete: each requested package finished/partial/blocked, concrete paths/decisions.
+3. Verifikation: actual tests/results, browser/video inspection, omitted checks/reasons, mocked versus real.
+4. Funktionsstatus: working, simulated, externally unverified and missing.
+5. Blocker und Owner-Aktionen: evidence and smallest action or none.
+6. Kosten und externe Aktionen: actual GitHub writes, paid calls/cost knowledge, services/messages/uploads/deployment; unknown costs stay unknown.
+7. Offene Arbeiten: priorities with acceptance criteria, including remaining cloud/auth/media gaps.
+8. Nächster empfohlener Auftrag: exactly one bounded goal with prerequisites/approvals.
+Preserve AGENTS.md and authorization boundaries.
