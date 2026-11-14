@@ -32,3 +32,9 @@ Official references read for this implementation:
 - https://developers.google.com/youtube/v3/docs/videos
 - https://developers.google.com/identity/protocols/oauth2/native-app
 - https://developers.google.com/identity/protocols/oauth2/web-server
+
+## Local callback receiver (implemented)
+
+The backend now exposes `/owner/session`, `/owner/logout`, `/oauth/youtube/start` and `/oauth/youtube/callback`. This is strictly the local Desktop loopback flow, not a hosted web callback. Use a Google Desktop client and fixed `http://127.0.0.1:<backend-port>/oauth/youtube/callback`. A 32+ character API_TOKEN is required even in local mode to bootstrap the owner session. POST operations require that exact backend Origin and Host. The one-hour host-only HttpOnly SameSite=Lax cookie allows Google's top-level callback while preventing cross-site POSTs; Secure is deliberately false only for HTTP loopback. OAuth state is encrypted and bound to the hashed server-side session, with atomic single consumption before token exchange. Logout/expiry block callbacks. Callback query strings are removed from ASGI access logging; responses never contain codes/tokens. No arbitrary redirects are accepted. Start returns the authorization URL without navigating automatically.
+
+YOUTUBE_ENABLED remains false; disabled endpoints fail before any Google request. Owner must separately authorize any actual login. MockTransport integration tests exercise the receiver without visiting Google. The publisher remains simulated regardless of OAuth connectivity.

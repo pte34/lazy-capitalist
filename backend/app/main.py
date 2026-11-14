@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, StringConstraints
 
 from app.config import Settings
+from app.oauth import register_oauth
 from app.providers import MockProvider, OpenAIProvider, Provider
 from app.store import Store
 from app.workflow import Workflow, register_routes
@@ -23,7 +24,7 @@ class Topic(BaseModel):
     ]
 
 
-def create_app(settings: Settings | None = None, provider: Provider | None = None):
+def create_app(settings: Settings | None = None, provider: Provider | None = None, youtube=None):
     settings = settings or Settings()
     store = Store(settings.database_path)
     provider = provider or (
@@ -185,4 +186,5 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
             }
 
     register_routes(app, Workflow(store), authorize)
+    register_oauth(app, settings, store, youtube)
     return app

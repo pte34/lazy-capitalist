@@ -140,12 +140,13 @@ class YouTube:
         except Exception:
             raise Blocked("External outcome uncertain; reconciliation required") from None
 
-    def begin_oauth(self):
+    def begin_oauth(self, owner_session=""):
+        name = "oauth:" + owner_session if owner_session else "oauth"
         state, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(64)
         with self.store.connect() as db:
             self.paused(db)
             self.vault.write(
-                db, "oauth", {"state": state, "verifier": verifier, "expires": time.time() + 600}
+                db, name, {"state": state, "verifier": verifier, "expires": time.time() + 600}
             )
         challenge = (
             base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
@@ -165,11 +166,12 @@ class YouTube:
             }
         )
 
-    def callback(self, state, code, redirect_uri):
+    def consume_oauth(self, state, redirect_uri, owner_session=""):
+        name = "oauth:" + owner_session if owner_session else "oauth"
         with self.store.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             self.paused(db)
-            pending = self.vault.read(db, "oauth")
+            pending = self.vault.read(db, name)
             if (
                 not pending
                 or pending["expires"] < time.time()
@@ -177,7 +179,11 @@ class YouTube:
                 or not secrets.compare_digest(pending["state"], state)
             ):
                 raise Blocked("Invalid OAuth state or callback")
-            db.execute("DELETE FROM youtube_vault WHERE name='oauth'")
+            db.execute("DELETE FROM youtube_vault WHERE name=?", (name,))
+        return pending
+
+    def callback(self, state, code, redirect_uri, owner_session=""):
+        pending = self.consume_oauth(state, redirect_uri, owner_session)
         self.token_request(
             {
                 "grant_type": "authorization_code",
