@@ -89,10 +89,12 @@ def test_parallel_chf_cap_retry_reservations_and_missing_prices(tmp_path):
 
     with ThreadPoolExecutor(max_workers=3) as pool:
         assert sorted(pool.map(attempt, ["a", "b", "c"])) == [200, 200, 402]
+    with store.connect() as db:
+        successful_key = db.execute("SELECT key FROM order_budget LIMIT 1").fetchone()[0]
     assert (
-        budget.reserve(order, "a", prices, verified=True, source="synthetic test pricing")[
-            "reserved_micro"
-        ]
+        budget.reserve(
+            order, successful_key, prices, verified=True, source="synthetic test pricing"
+        )["reserved_micro"]
         == 1_500_000
     )
     blocked = OrderBudget(store, daily=0, monthly=0)
@@ -130,3 +132,43 @@ def test_partial_failure_retains_progress_and_references_revoke(tmp_path, monkey
     changed = commands.update(order, plan)
     assert changed["approved_plan"] is None
     assert all(v["workflow"]["steps"][4]["status"] == "pending" for v in changed["videos"])
+
+
+def test_content_preferences_and_untrusted_links_are_data():
+    from app.commands import Plan
+
+    plan = Plan(
+        topic="Test preferences",
+        count=5,
+        budget_chf=3,
+        included_topics=["Allowed topic", "Excluded topic"],
+        excluded_topics=["Excluded"],
+        notes="$(touch /tmp/should-not-execute)",
+        references=["https://example.test/reference"],
+    )
+    service = Commands.__new__(Commands)
+    concept, board = service.video(plan, 1)
+    assert "Allowed topic" in concept.hook
+    assert "Excluded topic" not in concept.script
+    assert "$(touch /tmp/should-not-execute)" in concept.script
+    assert board.scenes
+    assert plan.references == ["https://example.test/reference"]
+
+
+@pytest.mark.parametrize("daily,monthly", [(1, 10), (10, 1)])
+def test_chf_daily_and_monthly_independently_block(tmp_path, daily, monthly):
+    settings = Settings(database_path=str(tmp_path / "db"), _env_file=None)
+    store = Store(settings.database_path)
+    commands = Commands(store, Workflow(store), settings)
+    order = commands.create(TEXT, "limits")["id"]
+    budget = OrderBudget(store, daily=daily, monthly=monthly)
+    with pytest.raises(HTTPException) as error:
+        budget.reserve(
+            order,
+            "retry-total",
+            {k: ".1" for k in CATEGORIES},
+            attempts=3,
+            verified=True,
+            source="test-only prices",
+        )
+    assert error.value.status_code == 402

@@ -52,6 +52,6 @@ class Settings(BaseSettings):
         if self.ai_provider == "openai":
             if not self.allow_paid_ai or not self.openai_api_key:
                 raise ValueError("OpenAI requires explicit paid AI enablement and a key")
-            if any(v <= 0 for v in values):
+            if any(v <= 0 for v in values[2:]):
                 raise ValueError("OpenAI requires positive budgets, reservation and verified rates")
         return self

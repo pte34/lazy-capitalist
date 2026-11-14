@@ -42,13 +42,15 @@ class Plan(BaseModel):
     channel_id: str = Field(default="local-youtube", pattern=r"^[A-Za-z0-9_-]{1,64}$")
     audience: str = Field(default="Einsteiger", max_length=160)
     tone: str = Field(default="sachlich", max_length=100)
-    length_seconds: int = Field(default=20, ge=8, le=60)
+    length_seconds: int = Field(default=20, ge=10, le=60)
     included_topics: list[str] = Field(default_factory=list, max_length=10)
     excluded_topics: list[str] = Field(default_factory=list, max_length=10)
     references: list[str] = Field(default_factory=list, max_length=10)
     notes: str = Field(default="", max_length=300)
     own_text: str = Field(default="", max_length=600)
-    own_text_rights: str = Field(default="Owner supplied; rights not independently verified", max_length=200)
+    own_text_rights: str = Field(
+        default="Owner supplied; rights not independently verified", max_length=200
+    )
     review_required: bool = False
 
     @field_validator("references")
@@ -178,6 +180,9 @@ class Commands:
                 raise HTTPException(404, "Order not found")
             result = dict(row)
             result["plan"] = json.loads(row["plan"])
+            result["paused"] = bool(
+                db.execute("SELECT paused FROM system_state WHERE id=1").fetchone()[0]
+            )
             result["videos"] = [
                 dict(r)
                 for r in db.execute(
@@ -205,8 +210,11 @@ class Commands:
                 "synthetic": True,
                 "retrieved_at": None,
                 "references_fetched": False,
-                "references": [{"url":url,"usage":"inspiration only","rights":"unknown","fetched":False} for url in result["plan"]["references"]],
-                "own_text_rights": result["plan"].get("own_text_rights","unknown"),
+                "references": [
+                    {"url": url, "usage": "inspiration only", "rights": "unknown", "fetched": False}
+                    for url in result["plan"]["references"]
+                ],
+                "own_text_rights": result["plan"].get("own_text_rights", "unknown"),
                 "current_trends_verified": False,
             }
             result["platforms"] = {
@@ -283,6 +291,8 @@ class Commands:
                 raise HTTPException(409, "Edit and review unsupported command first")
             if any(t.casefold() in plan.topic.casefold() for t in plan.excluded_topics):
                 raise HTTPException(409, "Topic conflicts with exclusions")
+            for number in range(1, plan.count + 1):
+                self.video(plan, number)
             digest = hashlib.sha256(row[0].encode()).hexdigest()
             db.execute(
                 "UPDATE commands SET approved_plan=?,status='approved' WHERE id=?",
@@ -306,10 +316,17 @@ class Commands:
             "quality checks",
         ]
         choices = plan.included_topics or (aspects_de if plan.language == "de" else aspects_en)
-        choices = [value for value in choices if not any(t.casefold() in value.casefold() for t in plan.excluded_topics)]
-        if not choices or any(t.casefold() in (plan.own_text+" "+plan.notes).casefold() for t in plan.excluded_topics):
+        choices = [
+            value
+            for value in choices
+            if not any(t.casefold() in value.casefold() for t in plan.excluded_topics)
+        ]
+        if not choices or any(
+            t.casefold() in (plan.own_text + " " + plan.notes).casefold()
+            for t in plan.excluded_topics
+        ):
             raise HTTPException(409, "Content constraints conflict; owner edit required")
-        aspect = choices[(number-1) % len(choices)]
+        aspect = choices[(number - 1) % len(choices)]
         concept = MockProvider().generate(plan.topic).concept
         concept.title = (
             f"{number}. {aspect} — lokaler Test"
@@ -414,7 +431,7 @@ class Commands:
                     )
                 db.execute("UPDATE commands SET status='producing' WHERE id=?", (order_id,))
             try:
-                self.workflow.run(job_id)
+                self.workflow.run(job_id, production_only=True)
             except HTTPException:
                 with self.store.connect() as db:
                     db.execute(

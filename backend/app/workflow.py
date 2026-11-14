@@ -105,7 +105,7 @@ class Workflow:
             },
         }
 
-    def run(self, job_id):
+    def run(self, job_id, *, production_only=False):
         snapshot = self.snapshot(job_id)
         if snapshot["job"]["status"] != "succeeded":
             raise HTTPException(
@@ -113,6 +113,8 @@ class Workflow:
             )
         for step in snapshot["steps"]:
             name = step["name"]
+            if production_only and name in ("approval", "upload"):
+                break
             if name == "approval" and step["status"] != "succeeded":
                 break
             with self.store.connect() as db:
