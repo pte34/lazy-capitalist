@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, StringConstraints
 
+from app.commands import register_commands
 from app.config import Settings
 from app.oauth import register_oauth
 from app.providers import MockProvider, OpenAIProvider, Provider
@@ -226,6 +227,8 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                 "revenue": None,
             }
 
-    register_routes(app, Workflow(store), authorize)
+    workflow = Workflow(store)
+    register_commands(app, settings, store, workflow, authorize)
+    register_routes(app, workflow, authorize)
     register_oauth(app, settings, store, youtube)
     return app

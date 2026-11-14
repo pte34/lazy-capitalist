@@ -1,4 +1,5 @@
 "use client";
+import CommandCenter from "./command-center";
 import Reports from "./reports";
 import Studio from "./studio";
 import Link from "next/link";
@@ -274,6 +275,7 @@ export default function Home() {
               </p>
             </section>
           )}
+          <CommandCenter />
           <Studio />
           <Reports />
           <footer>

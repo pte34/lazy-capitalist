@@ -27,12 +27,12 @@ async function proxy(request: NextRequest) {
     const body = request.method === "GET" ? "" : await request.text();
     const path = request.nextUrl.searchParams.get("path") || "/jobs";
     if (
-      !/^\/(reports(?:\/(?:settings|run|test|deliveries))?|finance|jobs(?:\/[a-f0-9-]+(?:\/(?:workflow|run|approval|reconcile|video))?)?|system(?:\/pause)?)$/.test(
+      !/^\/(commands(?:\/[a-f0-9-]+(?:\/(?:plan|approve|run))?)?|reports(?:\/(?:settings|run|test|deliveries))?|finance|jobs(?:\/[a-f0-9-]+(?:\/(?:workflow|run|approval|reconcile|video))?)?|system(?:\/pause)?)$/.test(
         path,
       )
     )
       return NextResponse.json({ detail: "Invalid path" }, { status: 400 });
-    if (body.length > 2000)
+    if (body.length > 16384)
       return NextResponse.json(
         { detail: "Request too large" },
         { status: 413 },
@@ -40,7 +40,7 @@ async function proxy(request: NextRequest) {
     const response = await fetch(new URL(path, url), {
       method: request.method,
       cache: "no-store",
-      signal: AbortSignal.timeout(55000),
+      signal: AbortSignal.timeout(180000),
       headers: {
         "Content-Type": "application/json",
         ...(request.headers.get("idempotency-key")

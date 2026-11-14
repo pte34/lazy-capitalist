@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     environment: Literal["local", "production"] = "local"
     database_path: str = "data/lazy-capitalist.db"
     api_token: SecretStr | None = None
+    command_daily_limit_chf: float = 0
+    command_monthly_limit_chf: float = 0
     reporting_scheduler_enabled: bool = True
     youtube_enabled: bool = False
     youtube_token_key: SecretStr | None = None
@@ -32,6 +34,8 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_environment(self):
         values = (
+            self.command_daily_limit_chf,
+            self.command_monthly_limit_chf,
             self.job_budget_usd,
             self.daily_budget_usd,
             self.monthly_budget_usd,
