@@ -178,7 +178,7 @@ def connect(dsn):
         return psycopg.connect(
             dsn,
             connect_timeout=5,
-            options="-c search_path=lc_runtime,pg_catalog -c timezone=UTC -c lock_timeout=10000 -c statement_timeout=30000",
+            options="-c search_path=lc_runtime,pg_catalog -c timezone=UTC -c lock_timeout=10000 -c statement_timeout=30000 -c idle_in_transaction_session_timeout=60000",
             row_factory=dict_row,
             prepare_threshold=None,
         )

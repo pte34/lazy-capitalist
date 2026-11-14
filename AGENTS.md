@@ -8,7 +8,9 @@
 - Backend: `cd backend && uv sync --locked && uv run pytest && uv run ruff check . && uv run ruff format --check .`.
 - Frontend: `cd frontend && npm ci && npm run lint && npm run build && npm run typecheck`.
 - Database: run migrations and tests/database.sql against disposable PostgreSQL 17 with anon/authenticated roles; RLS is deny-by-default, no browser access yet.
-- API runtime uses SQLite for local execution only; Supabase schema is prepared, not a connected adapter. Do not claim a Supabase deployment.
+- Runtime: explicit DATABASE_MODE=sqlite or postgres. PostgreSQL uses private lc_runtime with shared business logic and explicit migrations; never fall back or claim a Supabase deployment. See docs/POSTGRES_RUNTIME.md.
+- Use db.begin(resource) for admission/claims, not raw BEGIN IMMEDIATE. Keep HTTP outside DB transactions; preserve currency locks, fencing tokens and approved-artifact checks.
+- PG verification: PG_TEST_ADMIN_URL on isolated loopback test server, `cd backend && uv run pytest tests_pg`; source imports are synthetic, explicit, read-only and insert-only.
 - Clearly mark demo metrics, mock costs, estimated costs, reserved costs and actual revenue. Keep USD costs separate from CHF figures.
 - Document test evidence and remaining gaps. Never fabricate integrations, test results or deployments.
 - Keep this file compact (under 8,000 characters).

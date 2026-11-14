@@ -62,7 +62,7 @@ Backend secrets stay server-side. Production backend requires API_TOKEN (32+ cha
 1. Review and merge the PR after CI passes.
 2. Frontend Vercel project: choose root directory `frontend`, use the committed lockfile, and configure environment values server-side. `frontend/vercel.json` selects Next.js. No deployment has been performed. Hosted previews remain read-only.
 3. Supabase: owner selects an available plan, reviews costs, creates/links the project, and applies reviewed migrations. CLI: discover supported flags using `supabase --help`; never apply test role setup to hosted Supabase. RLS is enabled with no user policies. Verify advisors before production.
-4. Implement the PostgreSQL runtime adapter and owner Auth before connecting production writes. Select managed backend/workflow hosting and approve its budget. Do not deploy the SQLite backend onto ephemeral serverless disks.
+4. Apply and review the implemented PostgreSQL runtime migrations, then implement hosted owner Auth before connecting production writes. Select managed backend/workflow hosting and approve its budget. Do not deploy the SQLite backend onto ephemeral serverless disks.
 5. Only after separate approval: activate paid providers, confirm supported model schema and pricing, set provider billing limits, and reconcile usage.
 
 No free-tier capacity or CHF 0 production operation is guaranteed. The current local mock system needs no paid credentials. Architecture and extension boundaries are in ARCHITECTURE.md; future scope is in ROADMAP.md.
@@ -78,7 +78,7 @@ In the dashboard, generate a topic, open **Lokales Video-Teststudio**, refresh t
 API (same bearer protection as existing jobs):
 - `GET /jobs/{id}/workflow`, `POST /jobs/{id}/run`
 - `GET /jobs/{id}/video`, `POST /jobs/{id}/approval` with `{"approved":true,"privacy":"private"}`
-- `POST /jobs/{id}/reconcile` for interrupted local steps after 120 seconds
+- `POST /jobs/{id}/reconcile` for interrupted local steps after 600 seconds
 - `GET /system`, `POST /system/pause` with `{"paused":true}`
 - `POST /jobs/{id}/cost-reconciliation` with owner-supplied `actual_usd` and `billing_reference`; this is manual invoice reconciliation, not provider verification.
 
@@ -99,3 +99,7 @@ Owner-bound Desktop OAuth callbacks are implemented but live OAuth stays disable
 ## Command Center and platform signals
 
 The local dashboard now plans the deterministic five-video/CHF-3 example, exposes an editable content plan, separates production from publishing approval, and renders five genuine local text videos. Trend data is explicitly synthetic; references are never automatically fetched. Unknown compute costs are not priced as zero and no all-in CHF-3 guarantee is asserted. All paid order execution is unavailable. See docs/COMMAND_CENTER.md. Manual owner platform reports and synthetic signals can lock one channel until explicit review; upload errors are not strikes. Only YouTube is prepared for future live integration; TikTok/Instagram have no publishers. See docs/PLATFORM_WARNINGS.md. Reports include commands and channel warnings while keeping CHF/USD and real/simulated outcomes separate.
+
+## PostgreSQL runtime
+
+Both SQLite and explicit PostgreSQL modes use the same services. Native private runtime schema, least-privilege backend role, resource locks, fenced claims and snapshot reports are locally tested. Run explicit migrations before startup; no automatic fallback or data import occurs. Setup/import/restore contract: docs/POSTGRES_RUNTIME.md. Targeted findings: docs/PERSISTENCE_REVIEW.md. Remaining hosted auth, pooling, file storage, workers and operational gates: docs/CLOUD_READINESS.md. Cloud deployment and live providers remain unverified and disabled.

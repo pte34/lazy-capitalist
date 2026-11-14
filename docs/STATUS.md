@@ -1,45 +1,44 @@
 # Status — 2026-11-14
 
-## Current delivery and phase
+## Verified starting point and scope
 
-Verified starting point: clean 4a01e02, feat/local-oauth-video-reporting; remote main 6ad592c (initial README), prior local bundle intact. The updated authorized GitHub connection now permits HTTPS push. Initial branch SHA 4a01e02 was confirmed remotely; Draft PR https://github.com/pte34/lazy-capitalist/pull/1 exists. No merge or deployment. Final application SHA and CI links are reported in the completion handoff; consult git log and PR Checks for latest state.
+Started from clean local/remote dda3bc1 on feat/local-oauth-video-reporting, matching open Draft PR https://github.com/pte34/lazy-capitalist/pull/1. Historical remote CI was green. This task preserves that branch, history and the original public migration. No merge, deployment, cloud provisioning, production-data transfer, paid call, real OAuth/upload or real notification occurred.
 
-Phase 1 local foundation, remote repository handoff and remote CI are verified. Cloud acceptance remains OPEN: no managed deployment, PostgreSQL runtime repository, hosted owner authentication or production secret operations. Supabase migration remains the original prepared schema; new command/signal tables are local SQLite additions, not a deployed Supabase feature.
+## PostgreSQL runtime and targeted review
 
-## Packages
+SQLite remains the explicit offline default; PostgreSQL mode now runs all existing services through the same Store/query logic. DATABASE_MODE, protected DATABASE_URL, strong owner API_TOKEN and explicit ARTIFACT_DIR are required. No connection/schema failure falls back to SQLite or memory. Application roles have no DDL or schema-version-write privileges.
 
-1. GitHub: refreshed access worked, preserved feature history pushed, draft PR created. CI root-parent range failure was fixed by scanning complete Git history. Backend/frontend/database/secrets jobs passed on 9bd9b6b. A later run passed 76 tests and failed only trailing formatting in a split test file; the already locally corrected file is included in the final push. Never bypassed permissions or rewrote history.
-2. Command Center: deterministic editable example, separate production approval, existing workflow/renderer reuse, durable child video IDs, pause/retries/partial completion. Five distinct real local text videos verified. No paid execution route. CHF cap and integer reservations stay separate from USD; day/month CHF limits remain zero. Unknown compute/energy costs mean no all-in CHF-3 guarantee can be certified.
-3. Content: included/excluded topics, audience/language/requested tone/duration, stored inspiration links and owner text/rights note. Constraints are enforced, references are not fetched, own text is untrusted literal data, edits invalidate approvals. Arbitrary asset import and AI style rewriting are absent by design.
-4. Platform signals: protected manual/mock entry, dedupe, source/time/verification, critical dashboard alerts and channel-specific publication gates. Upload errors are separate. No auto-unlock: explicit owner review only. Official YouTube auditDetails restrictions documented; no new scope, mailbox or scraper and no promise of complete realtime strike detection.
-5. Reporting: command/results and CHF ledger summaries, reported versus synthetic warnings/current locks, real local renders versus simulated/private/public outcomes. Unknown public publication/revenue/ROI stay unknown; UTC storage/Zurich schedules, interim snapshots, mock delivery and local-process uptime limitation retained.
-6. Platforms: shared capability registry; YouTube prepared but live disabled, TikTok/Instagram future-only without live or simulated publishers. No income assumptions.
+Private lc_runtime has all 21 actual business tables plus migration metadata: jobs/steps/attempt counters, commands/plans, USD and CHF ledgers, artifact/approval JSON, encrypted OAuth/upload data, owner sessions, platform events/locks, reports/preferences/outbox and audit history. Four additive CLI-generated migrations add native numeric/timestamp/BYTEA types, constraints, indexes and 64-bit-compatible references. Public planning tables are unchanged; no managed Supabase deployment is implied.
 
-## Verification and boundaries
+Review fixes: resource-scoped transaction locks replace SQLite-only write assumptions; provider HTTP remains outside DB transactions. Workflow/outbox/encrypted-upload fencing rejects late workers. Render files are staged by claim and promoted only by the accepted worker; local lease is 600 seconds. OAuth consumption rechecks owner-session validity; approval prerequisites/metadata and channel gates are checked inside their relevant resource transaction. Reports use a consistent PostgreSQL snapshot and bounded retries only for known aborted database conflicts. Connection failure messages redact credentials. Targeted review is NOT a completed production security audit; remaining points are in docs/PERSISTENCE_REVIEW.md.
 
-77 backend tests pass locally, including CHF cap/day/month concurrency, retry costs/missing prices, restart/partial progress, content conflicts, references/approval invalidation, channel locks/dedupe/review and reporting distinctions. Python lint/format and frontend lint/build/TypeScript passed. New browser smoke checks the five-video command, reference editing, production-only approvals, five technically verified distinct 540×960/20s MP4s, pending upload steps, synthetic warning/review, report UI and mobile layout. Representative frame visually inspected: readable and inside the frame. Prior owner-cookie/OAuth, preview and reporting browser smokes remain in tests/.
+## Migrations and synthetic transfer
 
-Google HTTP is mocked in tests. No live OAuth, token operation, upload, email/WhatsApp, provider pricing, paid model call or deployment. Local report delivery remains mock. Unknown environment/compute/CI billing is not claimed as zero. Existing upstream Starlette/httpx deprecation warning remains; no dependency migration attempted. Remote database job verifies original prepared SQL, not a new cloud deployment.
+Explicit migration runner tracks checksums and applies each file plus history atomically. Empty and previously foundation-initialized databases, repeat application and checksum mismatch were tested. Applied migrations were not edited. Runtime startup only validates versions/tables. Separate synthetic-only SQLite import has preview, read-only integrity validation, insert/equal/conflict accounting, atomic rollback/no overwrite and replay support. Ciphertext, decimals, fractional timestamps and references above 32-bit range are preserved. No existing local user dataset was automatically transferred or deleted, and no video bytes are inserted into database blobs.
 
-## Owner actions and next criteria
+## Actual verification
 
-The historical 403 blocker is resolved in this environment; no further token sharing/reinstallation is needed for this completed handoff. Owner review of Draft PR is next; no merge authorization is implied.
+95 local tests passed: 80 SQLite/configuration tests and 15 actual PostgreSQL integration tests. These cover complete workflows/commands and real local rendering, independent-connection USD/CHF reservations, idempotent requests, exclusive claims, stale-renderer/outbox fences, actual child-process exit plus fresh-process resume, single-consumer OAuth state, channel locks, reports/outbox, rollback, private RLS/role privileges, migrations/import and API 503/no fallback on database outage. Google HTTP and delivery are mocked; no provider credentials required.
 
-Priorities after review:
-1. Cloud readiness plan: concrete PostgreSQL runtime migration for all local tables, owner-auth design and managed deployment/cost choice; acceptance = reviewed adapters/migrations/auth tests, no unapproved resource activation.
-2. Local production quality: optional authored storyboard UX, caption/voiceover/image design and provenance; acceptance = reviewed artifact and explicit rights/cost basis before any external provider.
-3. Live YouTube: Desktop project/channel/quota confirmation, protected key operations and separately authorized private-only live test with uncertain-outcome reconciliation. No exactly-once promise.
-4. Live notifications and other platforms remain separate later approvals, never automatic extensions.
+PostgreSQL browser smokes passed for the five-video Command Center, reports/mock notifications and owner-cookie/disabled OAuth receiver. The five browser-created video links were confirmed directly in PostgreSQL. Frontend lint/build/types and Python lint/format passed. The existing upstream Starlette test-client deprecation warning remains. Supabase Advisors was attempted but could not complete because its CLI connection refused the isolated non-TLS test instance; no production TLS setting was weakened. Native PostgreSQL RLS/grant/index/constraint checks are tested, not a substitute for hosted security review.
 
-## Required future handoff
+CI now includes postgres-runtime running actual application tests against its own isolated PostgreSQL 17 service; default offline tests skip those fixtures when PG_TEST_ADMIN_URL is absent. Final remote SHA, newest CI result and links are in the completion handoff/PR Checks. Latest local work is backed up as a verified Git bundle under ignored work/.
 
-Exactly one copyable block headed LAZY CAPITALIST – CODEX HANDOFF, with eight sections:
-1. Stand: phase, branch, local/confirmed remote commit, dirty state, PR and CI URL/results, deployment.
-2. Arbeitspakete: each requested package finished/partial/blocked, concrete paths/decisions.
-3. Verifikation: actual tests/results, browser/video inspection, omitted checks/reasons, mocked versus real.
-4. Funktionsstatus: working, simulated, externally unverified and missing.
-5. Blocker und Owner-Aktionen: evidence and smallest action or none.
-6. Kosten und externe Aktionen: actual GitHub writes, paid calls/cost knowledge, services/messages/uploads/deployment; unknown costs stay unknown.
-7. Offene Arbeiten: priorities with acceptance criteria, including remaining cloud/auth/media gaps.
-8. Nächster empfohlener Auftrag: exactly one bounded goal with prerequisites/approvals.
-Preserve AGENTS.md and authorization boundaries.
+## Remaining prerequisites and owner action
+
+See docs/CLOUD_READINESS.md: hosted owner auth, distinct hosted OAuth, external secret/key operations, reviewed managed TLS/pooling/connection limits, durable shared artifact storage, reliable workers/scheduler and monitoring/backup/restore drills. Local artifact promotion is not a distributed DB/file transaction. Actual billing remains owner/estimated data and ambiguous actions require reconciliation. These gaps are not provisioned or priced here; Phase 1 cloud acceptance stays open.
+
+Owner action for this development handoff: review the updated draft PR; no credentials, cloud activation or spending approval are needed for the completed local tests. Any real data transfer, provider activation, merge or deployment requires separate scope/approval. No additional product features were begun.
+
+## Required future completion convention
+
+Exactly one copyable block headed LAZY CAPITALIST – CODEX HANDOFF, eight sections:
+1. Stand — phase, branch, local/verified remote SHA, dirty state, PR/CI link/result, deployment.
+2. Umgesetzt — review fixes, database integration/paths, migrations and modes (or requested package status).
+3. Verifikation — executed tests, actual PostgreSQL/concurrency/restart/browser checks, omitted checks/reasons.
+4. Funktionsstatus — verified, local/mock, externally unverified and missing.
+5. Blocker und Owner-Aktionen — concrete uncertainty and smallest action or none.
+6. Kosten und externe Aktionen — actual GitHub writes/services/paid calls and cost knowledge; never count simulation as real.
+7. Offene Arbeiten — priorities with acceptance criteria.
+8. Nächster empfohlener Auftrag — exactly one bounded goal, prerequisites and approvals.
+Preserve AGENTS.md and owner authorization boundaries.
