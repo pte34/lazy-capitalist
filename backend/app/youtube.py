@@ -67,7 +67,7 @@ class Vault:
             raise Blocked("Invalid secure token storage configuration") from None
         self.store = store
         with store.connect() as db:
-            db.execute(
+            db.executescript(
                 "CREATE TABLE IF NOT EXISTS youtube_vault (name TEXT PRIMARY KEY, ciphertext BLOB NOT NULL)"
             )
 
@@ -145,6 +145,7 @@ class YouTube:
         name = "oauth:" + owner_session if owner_session else "oauth"
         state, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(64)
         with self.store.connect() as db:
+            db.begin("oauth:" + name)
             self.paused(db)
             self.vault.write(
                 db, name, {"state": state, "verifier": verifier, "expires": time.time() + 600}
@@ -170,8 +171,15 @@ class YouTube:
     def consume_oauth(self, state, redirect_uri, owner_session=""):
         name = "oauth:" + owner_session if owner_session else "oauth"
         with self.store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("oauth:" + name)
             self.paused(db)
+            if owner_session:
+                db.lock("owner:" + owner_session)
+                owner = db.execute(
+                    "SELECT expires FROM owner_sessions WHERE digest=?", (owner_session,)
+                ).fetchone()
+                if not owner or owner[0] < time.time():
+                    raise Blocked("Owner session expired or revoked")
             pending = self.vault.read(db, name)
             if (
                 not pending
@@ -294,7 +302,7 @@ class YouTube:
             raise Blocked("Validated, immutable MP4 artifact required") from None
         name = "upload:" + job_id
         with self.store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("youtube:upload:" + job_id)
             self.paused(db)
             attempt = self.vault.read(db, name)
             if attempt and attempt["artifact"] != artifact:
@@ -312,7 +320,12 @@ class YouTube:
             attempt = attempt or {"artifact": artifact, "state": "initiating", "calls": 0}
             if attempt["calls"] >= 3 or attempt.get("retry_at", 0) > time.time():
                 raise Blocked("Upload retry/quota limit reached")
-            attempt.update(busy=True, started=time.time(), calls=attempt["calls"] + 1)
+            attempt.update(
+                busy=True,
+                started=time.time(),
+                calls=attempt["calls"] + 1,
+                claim=secrets.token_hex(16),
+            )
             self.vault.write(db, name, attempt)
             db.execute("INSERT INTO audit_events(action) VALUES(?)", ("youtube_real_attempt",))
         try:
@@ -397,7 +410,7 @@ class YouTube:
 
     def recover_interrupted(self, job_id):
         with self.store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("youtube:upload:" + job_id)
             self.paused(db)
             name = "upload:" + job_id
             attempt = self.vault.read(db, name)
@@ -407,12 +420,16 @@ class YouTube:
                 or time.time() - attempt.get("started", 0) < 120
             ):
                 raise Blocked("Manual reconciliation required or request still active")
-            attempt.update(busy=False, state="reconciliation_required")
+            attempt.update(busy=False, state="reconciliation_required", claim=secrets.token_hex(16))
             self.vault.write(db, name, attempt)
         # Next upload invocation MUST probe this existing session before sending data.
 
     def save(self, name, attempt):
         with self.store.connect() as db:
+            db.begin("youtube:" + name)
+            current = self.vault.read(db, name)
+            if current and current.get("claim") != attempt.get("claim"):
+                raise Blocked("Stale upload worker; reconciliation required")
             self.vault.write(db, name, attempt)
 
     def complete(self, name, attempt, response):

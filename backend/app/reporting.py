@@ -9,10 +9,13 @@ from datetime import UTC, datetime, timedelta
 from datetime import time as daytime
 from decimal import Decimal
 from typing import Literal
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, field_validator
+
+from app.postgres import retry_aborted_snapshot
 
 ZONE = ZoneInfo("Europe/Zurich")
 CHANNELS = ("email", "whatsapp")
@@ -101,7 +104,7 @@ class Reporting:
             CREATE TABLE IF NOT EXISTS report_cooldowns(category TEXT PRIMARY KEY, last_sent REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS report_deliveries(id TEXT PRIMARY KEY, channel TEXT NOT NULL, status TEXT NOT NULL,
               payload TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, updated REAL NOT NULL DEFAULT 0,
-              retry_at REAL NOT NULL DEFAULT 0, result TEXT, error TEXT);
+              retry_at REAL NOT NULL DEFAULT 0, result TEXT, error TEXT, claim_token TEXT);
             """)
             db.execute(
                 "INSERT OR IGNORE INTO report_settings VALUES(1,?)",
@@ -137,7 +140,7 @@ class Reporting:
             "actual_recorded": "0.000000",
             "compute_energy_cost": "unknown",
         }
-        if db.execute("SELECT 1 FROM sqlite_master WHERE name='commands'").fetchone():
+        if db.table_exists("commands"):
             commands = db.execute(
                 "SELECT id,status FROM commands WHERE created_at>=? AND created_at<?", (lo, hi)
             ).fetchall()
@@ -164,7 +167,7 @@ class Reporting:
             "blocked_channels_current": [],
             "automatic_strike_detection": False,
         }
-        if db.execute("SELECT 1 FROM sqlite_master WHERE name='platform_events'").fetchone():
+        if db.table_exists("platform_events"):
             signals = db.execute(
                 "SELECT kind,payload FROM platform_events WHERE created_at>=? AND created_at<?",
                 (lo, hi),
@@ -237,13 +240,14 @@ class Reporting:
         )
         return key
 
+    @retry_aborted_snapshot
     def tick(self, now=None, *, alerts_only=False):
         now = now or datetime.now(UTC)
         if now.tzinfo is None:
             raise ValueError("Timezone-aware clock required")
         keys = []
         with self.store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("report:schedule", repeatable=True)
             prefs = self.preferences(db)
             if not alerts_only:
                 for offset in range(6, -1, -1):
@@ -326,7 +330,7 @@ class Reporting:
         # Only mocks exist: interrupted mock deliveries can safely resume with the same receipt key.
         with self.store.connect() as db:
             db.execute(
-                "UPDATE report_deliveries SET status='pending' WHERE status='running' AND updated<?",
+                "UPDATE report_deliveries SET status=CASE WHEN attempts>=3 THEN 'failed' ELSE 'pending' END,claim_token=NULL WHERE status='running' AND updated<?",
                 (now.timestamp() - 120,),
             )
             ids = [
@@ -338,7 +342,7 @@ class Reporting:
             ]
         for key in ids:
             with self.store.connect() as db:
-                db.execute("BEGIN IMMEDIATE")
+                db.begin("outbox:" + key)
                 row = db.execute("SELECT * FROM report_deliveries WHERE id=?", (key,)).fetchone()
                 if (
                     row["status"] not in ("pending", "failed", "blocked_configuration")
@@ -358,9 +362,10 @@ class Reporting:
                         (key,),
                     )
                     continue
+                claim = uuid4().hex
                 db.execute(
-                    "UPDATE report_deliveries SET status='running',attempts=attempts+1,updated=? WHERE id=?",
-                    (now.timestamp(), key),
+                    "UPDATE report_deliveries SET status='running',attempts=attempts+1,updated=?,claim_token=? WHERE id=?",
+                    (now.timestamp(), claim, key),
                 )
             try:
                 result = self.delivery.send(
@@ -373,14 +378,14 @@ class Reporting:
                     raise ValueError("Real delivery prohibited")
                 with self.store.connect() as db:
                     db.execute(
-                        "UPDATE report_deliveries SET status='simulated',result=?,error=NULL WHERE id=?",
-                        (json.dumps(result), key),
+                        "UPDATE report_deliveries SET status='simulated',result=?,error=NULL WHERE id=? AND claim_token=? AND status='running'",
+                        (json.dumps(result), key, claim),
                     )
             except Exception:
                 with self.store.connect() as db:
                     db.execute(
-                        "UPDATE report_deliveries SET status='failed',error='Mock delivery failed',retry_at=? WHERE id=?",
-                        (now.timestamp() + 2 ** (row["attempts"] + 1), key),
+                        "UPDATE report_deliveries SET status='failed',error='Mock delivery failed',retry_at=? WHERE id=? AND claim_token=? AND status='running'",
+                        (now.timestamp() + 2 ** (row["attempts"] + 1), key, claim),
                     )
                 # Intentionally no job-failure audit event: no recursive alert chain.
 
@@ -432,7 +437,7 @@ def register_reporting(app, settings, store, authorize):
     @app.post("/reports/test", dependencies=dependencies)
     def test(idempotency_key: str | None = Header(default=None, max_length=200)):
         with store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("report:test:" + str(idempotency_key))
             prefs = service.preferences(db)
             if not prefs.email and not prefs.whatsapp:
                 raise HTTPException(409, "Configure at least one mock recipient")

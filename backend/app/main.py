@@ -3,6 +3,7 @@ import hmac
 import json
 import logging
 from contextlib import asynccontextmanager
+from decimal import Decimal
 from typing import Annotated
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from app.commands import register_commands
 from app.config import Settings
 from app.oauth import register_oauth
 from app.platforms import register_platforms
+from app.postgres import DatabaseUnavailable
 from app.providers import MockProvider, OpenAIProvider, Provider
 from app.reporting import register_reporting
 from app.store import Store
@@ -31,7 +33,12 @@ class Topic(BaseModel):
 
 def create_app(settings: Settings | None = None, provider: Provider | None = None, youtube=None):
     settings = settings or Settings()
-    store = Store(settings.database_path)
+    store = Store(
+        settings.database_path,
+        mode=settings.database_mode,
+        database_url=settings.database_url.get_secret_value() if settings.database_url else None,
+        artifact_dir=settings.artifact_dir,
+    )
     provider = provider or (
         MockProvider() if settings.ai_provider == "mock" else OpenAIProvider(settings)
     )
@@ -82,6 +89,13 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
             status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers
         )
 
+    @app.exception_handler(DatabaseUnavailable)
+    async def database_unavailable(request: Request, exc: DatabaseUnavailable):
+        logger.error('{"event":"database_unavailable"}')
+        return JSONResponse(
+            status_code=503, content={"detail": "Database unavailable; no fallback"}
+        )
+
     @app.exception_handler(Exception)
     async def unexpected(request: Request, exc: Exception):
         logger.error(json.dumps({"event": "request_failed", "type": type(exc).__name__}))
@@ -103,7 +117,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
         reservation = settings.request_reservation_usd if settings.ai_provider == "openai" else 0
         # Serialize budget reservation across processes; committed BEFORE any paid call.
         with store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("submission:" + idempotency_key)
             if idempotency_key:
                 prior = db.execute(
                     "SELECT * FROM submissions WHERE key=?", (idempotency_key,)
@@ -115,6 +129,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
             if db.execute("SELECT paused FROM system_state WHERE id=1").fetchone()[0]:
                 raise HTTPException(423, "System paused")
             if reservation:
+                db.lock("budget:USD")
                 for limit, cutoff in [
                     (settings.job_budget_usd, None),
                     (settings.daily_budget_usd, "date('now')"),
@@ -128,10 +143,14 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                             f"ON j.id=u.job_id WHERE j.created_at >= {cutoff}"
                         ).fetchone()[0]
                     )
-                    if limit <= 0 or spent + reservation > limit:
+                    if limit <= 0 or Decimal(str(spent)) + Decimal(str(reservation)) > Decimal(
+                        str(limit)
+                    ):
                         raise HTTPException(402, "Job/day/month budget missing or exhausted")
             total = db.execute("SELECT COALESCE(SUM(cost_usd),0) FROM ai_usage").fetchone()[0]
-            if reservation and total + reservation > settings.lifetime_budget_usd:
+            if reservation and Decimal(str(total)) + Decimal(str(reservation)) > Decimal(
+                str(settings.lifetime_budget_usd)
+            ):
                 raise HTTPException(402, "Lifetime AI budget exhausted")
             db.execute(
                 "INSERT INTO video_jobs(id,topic,provider,status) VALUES(?,?,?,?)",
@@ -158,6 +177,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
         try:
             generation = provider.generate(body.topic.strip())
             with store.connect() as db:
+                db.begin("budget:USD" if reservation else "job:" + job_id)
                 db.execute(
                     "UPDATE video_jobs SET status='succeeded',result=? WHERE id=?",
                     (generation.concept.model_dump_json(), job_id),

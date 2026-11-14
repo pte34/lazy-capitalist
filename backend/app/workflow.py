@@ -1,9 +1,12 @@
 """Durable local MVP steps. No network rendering or publishing is enabled."""
 
+import hashlib
 import json
+import shutil
 import time
 from pathlib import Path
 from typing import Literal, Protocol
+from uuid import uuid4
 
 from fastapi import Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -69,7 +72,7 @@ class Workflow:
         self.store = store
         self.renderer = renderer or LocalRenderer()
         self.publisher = publisher or SimulatedYouTube()
-        self.assets = Path(store.path).parent / "videos"
+        self.assets = store.artifact_dir
 
     def snapshot(self, job_id):
         job = self.store.job(job_id)
@@ -119,7 +122,7 @@ class Workflow:
             if name == "approval" and step["status"] != "succeeded":
                 break
             with self.store.connect() as db:
-                db.execute("BEGIN IMMEDIATE")
+                db.begin("job:" + job_id)
                 if db.execute("SELECT paused FROM system_state WHERE id=1").fetchone()[0]:
                     raise HTTPException(423, "System paused")
                 current = db.execute(
@@ -127,39 +130,71 @@ class Workflow:
                 ).fetchone()
                 if current["status"] == "succeeded":
                     continue
+                if name == "approval":
+                    if current["status"] != "succeeded":
+                        break
+                    continue
                 if name == "upload":
+                    approved = db.execute(
+                        "SELECT status FROM workflow_steps WHERE job_id=? AND name='approval'",
+                        (job_id,),
+                    ).fetchone()
+                    if not approved or approved[0] != "succeeded":
+                        raise HTTPException(409, "Current artifact approval required")
                     publication_guard(db, job_id)
                 if current["status"] == "running":
                     raise HTTPException(409, "Step outcome uncertain; reconcile before retry")
                 if current["attempts"] >= 3 or current["next_retry"] > time.time():
                     raise HTTPException(409, "Retry limit reached or backoff active")
+                claim = uuid4().hex
                 db.execute(
-                    "UPDATE workflow_steps SET status='running', attempts=attempts+1, updated=? "
+                    "UPDATE workflow_steps SET status='running', attempts=attempts+1, updated=?,claim_token=? "
                     "WHERE job_id=? AND name=?",
-                    (time.time(), job_id, name),
+                    (time.time(), claim, job_id, name),
                 )
             try:
-                result = self.execute(job_id, name, snapshot["job"])
+                result = self.execute(job_id, name, snapshot["job"], claim=claim)
             except Exception:
                 with self.store.connect() as db:
-                    db.execute(
+                    db.begin("job:" + job_id)
+                    changed = db.execute(
                         "UPDATE workflow_steps SET status='failed',error=?,next_retry=? "
-                        "WHERE job_id=? AND name=?",
+                        "WHERE job_id=? AND name=? AND claim_token=?",
                         (
                             "Local step failed; verify FFmpeg and quality report",
                             time.time() + 2 ** (current["attempts"] + 1),
                             job_id,
                             name,
+                            claim,
                         ),
                     )
+                    if changed.rowcount == 0:
+                        raise HTTPException(409, "Stale worker failure rejected") from None
                     db.execute(
                         "INSERT INTO audit_events(job_id,action) VALUES(?,?)",
                         (job_id, f"{name}_failed"),
                     )
                 raise HTTPException(502, f"{name} failed; retry after backoff") from None
             with self.store.connect() as db:
+                db.begin("job:" + job_id)
+                current_claim = db.execute(
+                    "SELECT claim_token,status FROM workflow_steps WHERE job_id=? AND name=?",
+                    (job_id, name),
+                ).fetchone()
+                if current_claim["claim_token"] != claim or current_claim["status"] != "running":
+                    raise HTTPException(409, "Stale worker result rejected")
+                if name == "render":
+                    staged = self.assets / result.pop("_staged_file")
+                    destination = self.assets / f"{job_id}.mp4"
+                    if destination.exists():
+                        shutil.copy2(
+                            destination,
+                            self.assets
+                            / (hashlib.sha256(destination.read_bytes()).hexdigest() + ".mp4"),
+                        )
+                    staged.replace(destination)
                 db.execute(
-                    "UPDATE workflow_steps SET status='succeeded',result=?,error=NULL "
+                    "UPDATE workflow_steps SET status='succeeded' ,result=?,error=NULL "
                     "WHERE job_id=? AND name=?",
                     (json.dumps(result), job_id, name),
                 )
@@ -181,7 +216,7 @@ class Workflow:
             "synthetic_media": flags["synthetic_media"],
         }
 
-    def execute(self, job_id, name, job):
+    def execute(self, job_id, name, job, *, claim=None):
         concept = job["result"]
         if name == "quality":
             sentences = [s.strip().lower() for s in concept["script"].split(".") if s.strip()]
@@ -214,7 +249,11 @@ class Workflow:
                 if custom
                 else Storyboard.from_concept(concept)
             )
-            return self.renderer.render(job_id, video, storyboard=board)
+            staged = video.with_name(f"{job_id}.{claim}.mp4") if claim else video
+            result = self.renderer.render(job_id, staged, storyboard=board)
+            if claim:
+                result["_staged_file"] = staged.name
+            return result
         if name == "preview":
             if not video.is_file():
                 raise ValueError("Missing preview")
@@ -256,7 +295,7 @@ def register_routes(app, workflow, authorize):
     def set_storyboard(job_id: str, body: Storyboard):
         workflow.snapshot(job_id)
         with workflow.store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("job:" + job_id)
             rows = db.execute(
                 "SELECT name,status FROM workflow_steps WHERE job_id=?", (job_id,)
             ).fetchall()
@@ -286,7 +325,7 @@ def register_routes(app, workflow, authorize):
         if job["status"] == "running" or job["provider"] == "mock":
             raise HTTPException(409, "Cannot reconcile running or mock usage")
         with workflow.store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("budget:USD")
             db.execute(
                 "UPDATE ai_usage SET cost_usd=?,cost_kind='actual' WHERE job_id=?",
                 (body.actual_usd, job_id),
@@ -313,7 +352,7 @@ def register_routes(app, workflow, authorize):
     @app.post("/system/pause", dependencies=protected)
     def pause(body: Pause):
         with workflow.store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("system:pause")
             db.execute("UPDATE system_state SET paused=? WHERE id=1", (body.paused,))
             db.execute(
                 "INSERT INTO audit_events(action) VALUES(?)",
@@ -335,7 +374,20 @@ def register_routes(app, workflow, authorize):
         if any(s["status"] != "succeeded" for s in state["steps"][:4]):
             raise HTTPException(409, "Preview and quality checks required")
         with workflow.store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("job:" + job_id)
+            current_steps = db.execute(
+                "SELECT name,status FROM workflow_steps WHERE job_id=?", (job_id,)
+            ).fetchall()
+            if any(
+                r["status"] != "succeeded"
+                for r in current_steps
+                if r["name"] in ("quality", "media", "render", "preview")
+            ):
+                raise HTTPException(409, "Preview changed; review current artifact")
+            current_job = db.execute(
+                "SELECT result FROM video_jobs WHERE id=?", (job_id,)
+            ).fetchone()
+            state["job"]["result"] = json.loads(current_job[0])
             if (
                 db.execute(
                     "SELECT status FROM workflow_steps WHERE job_id=? AND name='upload'", (job_id,)
@@ -378,14 +430,14 @@ def register_routes(app, workflow, authorize):
         workflow.snapshot(job_id)
         # Only deterministic local/simulated operations may be reset. No real upload adapter exists.
         with workflow.store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("job:" + job_id)
             active = db.execute(
                 "SELECT * FROM workflow_steps WHERE job_id=? AND status='running'", (job_id,)
             ).fetchall()
-            if any(time.time() - row["updated"] < 120 for row in active):
+            if any(time.time() - row["updated"] < 600 for row in active):
                 raise HTTPException(409, "Step may still be active")
             db.execute(
-                "UPDATE workflow_steps SET status='failed',error='Interrupted local operation' "
+                "UPDATE workflow_steps SET status='failed',claim_token=NULL,error='Interrupted local operation' "
                 "WHERE job_id=? AND status='running'",
                 (job_id,),
             )

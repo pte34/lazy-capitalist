@@ -31,7 +31,7 @@ class HideOAuthQuery:
 def register_oauth(app, settings, store, injected=None):
     app.add_middleware(HideOAuthQuery)
     with store.connect() as db:
-        db.execute(
+        db.executescript(
             "CREATE TABLE IF NOT EXISTS owner_sessions (digest TEXT PRIMARY KEY, expires REAL NOT NULL)"
         )
 
@@ -105,6 +105,7 @@ def register_oauth(app, settings, store, injected=None):
         csrf(request)
         digest = owner(request)
         with store.connect() as db:
+            db.begin("owner:" + digest)
             db.execute("DELETE FROM owner_sessions WHERE digest=?", (digest,))
         response.delete_cookie(COOKIE, path="/")
         return {"owner_session": False}

@@ -6,8 +6,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
     environment: Literal["local", "production"] = "local"
+    database_mode: Literal["sqlite", "postgres"] = "sqlite"
+    database_url: SecretStr | None = None
+    artifact_dir: str | None = None
     database_path: str = "data/lazy-capitalist.db"
     api_token: SecretStr | None = None
     command_daily_limit_chf: float = 0
@@ -33,6 +36,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_environment(self):
+        if self.database_url and self.database_mode != "postgres":
+            raise ValueError("DATABASE_URL requires explicit DATABASE_MODE=postgres")
+        if self.database_mode == "postgres" and (not self.database_url or not self.artifact_dir):
+            raise ValueError("PostgreSQL requires DATABASE_URL and explicit ARTIFACT_DIR")
         values = (
             self.command_daily_limit_chf,
             self.command_monthly_limit_chf,
@@ -46,9 +53,11 @@ class Settings(BaseSettings):
         )
         if any(not math.isfinite(v) or v < 0 for v in values):
             raise ValueError("Budgets and rates must be finite and nonnegative")
-        if self.environment == "production":
+        if self.environment == "production" or self.database_mode == "postgres":
             if self.api_token is None or len(self.api_token.get_secret_value()) < 32:
-                raise ValueError("Production requires an API_TOKEN of at least 32 characters")
+                raise ValueError(
+                    "Production/PostgreSQL requires an API_TOKEN of at least 32 characters"
+                )
         if self.ai_provider == "openai":
             if not self.allow_paid_ai or not self.openai_api_key:
                 raise ValueError("OpenAI requires explicit paid AI enablement and a key")

@@ -119,7 +119,7 @@ class OrderBudget:
             )
         amount = sum(micro(prices[k]) for k in CATEGORIES) * attempts
         with self.store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("budget:CHF")
             existing = db.execute("SELECT * FROM order_budget WHERE key=?", (key,)).fetchone()
             if existing:
                 if existing["order_id"] != order_id or existing["estimate_micro"] != amount:
@@ -224,7 +224,7 @@ class Commands:
 
     def create(self, text, key):
         with self.store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("command-create:" + key)
             existing = db.execute(
                 "SELECT id,input FROM commands WHERE request_key=?", (key,)
             ).fetchone()
@@ -242,7 +242,8 @@ class Commands:
 
     def update(self, order_id, plan):
         with self.store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("command:" + order_id)
+            db.lock("budget:CHF")
             row = db.execute("SELECT plan FROM commands WHERE id=?", (order_id,)).fetchone()
             if not row:
                 raise HTTPException(404, "Order not found")
@@ -261,6 +262,7 @@ class Commands:
             if videos and plan.count != old.count:
                 raise HTTPException(409, "Video count immutable after production starts")
             for video in videos:
+                db.lock("job:" + video[0])
                 steps = db.execute(
                     "SELECT name,status FROM workflow_steps WHERE job_id=?", (video[0],)
                 ).fetchall()
@@ -286,7 +288,7 @@ class Commands:
 
     def approve(self, order_id):
         with self.store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("command:" + order_id)
             row = db.execute("SELECT plan FROM commands WHERE id=?", (order_id,)).fetchone()
             if not row:
                 raise HTTPException(404, "Order not found")
@@ -386,7 +388,7 @@ class Commands:
         # Only creates deterministic mock scripts; no configurable external provider is consulted.
         for number in range(1, 11):
             with self.store.connect() as db:
-                db.execute("BEGIN IMMEDIATE")
+                db.begin("command:" + order_id)
                 row = db.execute("SELECT * FROM commands WHERE id=?", (order_id,)).fetchone()
                 if not row:
                     raise HTTPException(404, "Order not found")
@@ -401,6 +403,8 @@ class Commands:
                 previous = db.execute(
                     "SELECT * FROM command_videos WHERE order_id=? AND number=?", (order_id, number)
                 ).fetchone()
+                if previous:
+                    db.lock("job:" + previous["job_id"])
                 concept, board = self.video(plan, number)
                 job_id = previous["job_id"] if previous else str(uuid4())
                 if not previous:

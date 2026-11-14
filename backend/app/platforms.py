@@ -73,7 +73,7 @@ def ensure(db):
 
 
 def channel_for(db, job_id):
-    if db.execute("SELECT 1 FROM sqlite_master WHERE name='command_videos'").fetchone():
+    if db.table_exists("command_videos"):
         row = db.execute(
             "SELECT c.plan FROM command_videos v JOIN commands c ON c.id=v.order_id WHERE v.job_id=?",
             (job_id,),
@@ -86,9 +86,10 @@ def channel_for(db, job_id):
 
 def publication_guard(db, job_id):
     platform, channel = channel_for(db, job_id)
+    db.lock("platform-channel:" + platform + ":" + channel)
     if platform != "youtube":
         raise HTTPException(409, "Future platform has no publishing adapter")
-    if db.execute("SELECT 1 FROM sqlite_master WHERE name='platform_blocks'").fetchone():
+    if db.table_exists("platform_blocks"):
         row = db.execute(
             "SELECT blocked FROM platform_blocks WHERE platform=? AND channel_id=?",
             (platform, channel),
@@ -106,7 +107,8 @@ class Platforms:
     def record(self, event, key):
         payload = event.model_dump_json()
         with self.store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("platform-event:" + key)
+            db.lock("platform-channel:" + event.platform + ":" + event.channel_id)
             existing = db.execute(
                 "SELECT payload FROM platform_events WHERE id=?", (key,)
             ).fetchone()
@@ -175,7 +177,7 @@ def register_platforms(app, settings, store, reports, authorize):
     @app.post("/platforms/review", dependencies=protected)
     def review(body: Review):
         with store.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            db.begin("platform-channel:" + body.platform + ":" + body.channel_id)
             row = db.execute(
                 "SELECT 1 FROM platform_blocks WHERE platform=? AND channel_id=?",
                 (body.platform, body.channel_id),
