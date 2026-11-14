@@ -2,7 +2,7 @@
 
 ## Verified baseline and task branch
 
-Started from verified clean commit 84fa8fa on feat/youtube-private-adapter, preserving 0759c77, 4f62dc3 and the empty main base. Current branch: feat/local-oauth-video-reporting. Separate commits implement A (6b1d077), B (436cf57) and C (c98ec01); final hardening/documentation follows. Local history is additionally backed up as ignored work/*.bundle files. Use git log/status for the final local SHA and dirty state.
+Started from verified clean commit 84fa8fa on feat/youtube-private-adapter, preserving 0759c77, 4f62dc3 and the empty main base. Current branch: feat/local-oauth-video-reporting. Separate commits implement A (6b1d077), B (436cf57) and C (c98ec01); Final hardening/documentation and preservation of the unrelated initial remote history follow in separate commits. Local history is additionally backed up as ignored work/*.bundle files. Use git log/status for the final local SHA and dirty state.
 
 ## Phase status
 
@@ -16,11 +16,11 @@ C — Finished within local/mock scope: immutable daily/weekly/monthly Zurich sn
 
 ## Verification
 
-Final backend suite: 66 passing tests. Python lint/format and frontend ESLint/build/TypeScript passed. Google HTTP was mocked; actual local FFmpeg/ffprobe was exercised. Browser smoke passed through script preview, protected callback rejection, report settings, mock delivery/history and mobile layout. An extracted example frame was visually inspected: centered readable text inside bounds. Staged Gitleaks scan recorded in final handoff. The existing Starlette/httpx test-client deprecation warning remains: changing clients would require an unnecessary dependency migration. No live Google, messaging, paid model, upload or cloud test occurred.
+Final backend suite: 66 passing tests. Python lint/format and frontend ESLint/build/TypeScript passed. Google HTTP was mocked; actual local FFmpeg/ffprobe was exercised. Browser smoke passed through owner bootstrap/HttpOnly cookie, disabled OAuth start/callback, script preview, report settings, mock delivery/history and mobile layout. An extracted example frame was visually inspected: centered readable text inside bounds. Gitleaks found no secrets in the staged final changes and full application diff against remote main. The existing Starlette/httpx test-client deprecation warning remains: changing clients would require an unnecessary dependency migration. No live Google, messaging, paid model, upload or cloud test occurred.
 
 ## GitHub blocker / smallest owner action
 
-No unchanged write attempt was repeated. A final read-only check discovered new remote main 6ad592c containing only the repository title; its history is preserved before one controlled feature-branch push attempt. Historical errors remain HTTP 403 (`Permission ... denied` and `Resource not accessible by integration`). Read-only metadata succeeded earlier; initial main 6ad592c is now confirmed, not an application deployment. gh used GH_TOKEN; no local Git helper/askpass/extraheader explained the exact HTTPS credential injection, and a proxy environment was present. Account push/admin flags do not prove this environment's token/app permissions. No credential or protection bypass is attempted.
+No unchanged write attempt was repeated. A final read-only check discovered new remote main 6ad592c containing only the repository title. Its unrelated history was preserved by merge 0674093, retaining the full local README. One controlled feature-branch push after that new evidence still returned HTTP 403: Permission to pte34/lazy-capitalist.git denied to pte34. No further write attempts were made; no draft PR or remote CI could be created. Historical errors remain HTTP 403 (`Permission ... denied` and `Resource not accessible by integration`). Read-only metadata succeeded earlier; initial main 6ad592c is now confirmed, not an application deployment. gh used GH_TOKEN; no local Git helper/askpass/extraheader explained the exact HTTPS credential injection, and a proxy environment was present. Account push/admin flags do not prove this environment's token/app permissions. No credential or protection bypass is attempted.
 
 Owner: confirm/grant this environment's repository Contents, Pull Requests and Workflows write access, or have the administrator clarify proxy write policy; never paste tokens into chat. Then perform one authorized push, create a draft PR and verify matching SHA/CI. Do not merge or deploy automatically.
 
