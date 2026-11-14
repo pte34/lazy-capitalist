@@ -13,6 +13,7 @@ from uuid import uuid4
 from fastapi import Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.platforms import CAPABILITIES
 from app.providers import MockProvider
 from app.rendering import Scene, Storyboard
 
@@ -218,11 +219,7 @@ class Commands:
                 "own_text_rights": result["plan"].get("own_text_rights", "unknown"),
                 "current_trends_verified": False,
             }
-            result["platforms"] = {
-                "youtube": "prepared adapter, live disabled",
-                "tiktok": "future; no adapter",
-                "instagram": "future; no adapter",
-            }
+            result["platforms"] = CAPABILITIES
             return result
 
     def create(self, text, key):

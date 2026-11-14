@@ -7,6 +7,24 @@ from typing import Literal
 from fastapi import Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+CAPABILITIES = {
+    "youtube": {
+        "adapter": "prepared_disabled",
+        "live_upload_enabled": False,
+        "simulated_upload_supported": True,
+    },
+    "tiktok": {
+        "adapter": "future_none",
+        "live_upload_enabled": False,
+        "simulated_upload_supported": False,
+    },
+    "instagram": {
+        "adapter": "future_none",
+        "live_upload_enabled": False,
+        "simulated_upload_supported": False,
+    },
+}
+
 
 class PlatformEvent(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -127,11 +145,7 @@ class Platforms:
                 ],
                 "channels": [dict(r) for r in db.execute("SELECT * FROM platform_blocks")],
                 "coverage": "Manual owner reports and synthetic test signals only. No automatic strike feed, mailbox, scraping or new OAuth scope.",
-                "platforms": {
-                    "youtube": "prepared live adapter disabled",
-                    "tiktok": "future; no adapter",
-                    "instagram": "future; no adapter",
-                },
+                "platforms": CAPABILITIES,
             }
 
 
