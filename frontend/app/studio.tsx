@@ -167,7 +167,8 @@ export default function Studio() {
       )}
       <p className="muted">
         Globale Pause verhindert neue Arbeit; bereits begonnene Schritte können
-        abschliessen. Echte YouTube-Verbindung: nicht eingerichtet.
+        abschliessen. YouTube-Adapter: implementiert, deaktiviert und nicht
+        verbunden. Fertige Produktion aus dem Skript: noch nicht implementiert.
         Leistungsdaten und Einnahmen: unbekannt.
       </p>
     </section>

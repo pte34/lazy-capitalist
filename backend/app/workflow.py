@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.store import Store
+from app.youtube import Metadata, fingerprint
 
 STEPS = ("quality", "media", "render", "preview", "approval", "upload")
 
@@ -21,7 +22,15 @@ class Renderer(Protocol):
 
 
 class Publisher(Protocol):
-    def upload(self, job_id: str, video: Path, privacy: Literal["private"]) -> dict: ...
+    def upload(
+        self,
+        job_id: str,
+        video: Path,
+        privacy: Literal["private"],
+        *,
+        metadata: dict,
+        approval: str,
+    ) -> dict: ...
 
 
 class LocalRenderer:
@@ -64,7 +73,7 @@ class LocalRenderer:
 
 
 class SimulatedYouTube:
-    def upload(self, job_id, video, privacy):
+    def upload(self, job_id, video, privacy, *, metadata=None, approval=None):
         if privacy != "private":
             raise ValueError("Public publishing disabled")
         return {
@@ -79,6 +88,8 @@ class SimulatedYouTube:
 class Approval(BaseModel):
     approved: bool
     privacy: Literal["private"] = "private"
+    made_for_kids: bool = False
+    synthetic_media: bool = True
 
 
 class CostReconciliation(BaseModel):
@@ -189,9 +200,21 @@ class Workflow:
                 )
                 db.execute(
                     "INSERT INTO audit_events(job_id,action) VALUES(?,?)",
-                    (job_id, f"{name}_succeeded"),
+                    (
+                        job_id,
+                        f"{name}_succeeded" + (":simulated" if result.get("simulation") else ""),
+                    ),
                 )
         return self.snapshot(job_id)
+
+    def upload_metadata(self, job, flags):
+        return {
+            "title": job["result"]["title"][:100],
+            "description": job["result"]["script"],
+            "privacy": "private",
+            "made_for_kids": flags["made_for_kids"],
+            "synthetic_media": flags["synthetic_media"],
+        }
 
     def execute(self, job_id, name, job):
         concept = job["result"]
@@ -223,7 +246,26 @@ class Workflow:
                 raise ValueError("Missing preview")
             return {"preview": f"/jobs/{job_id}/video", "simulation": True}
         if name == "upload":
-            return self.publisher.upload(job_id, video, "private")
+            with self.store.connect() as db:
+                approved = json.loads(
+                    db.execute(
+                        "SELECT result FROM workflow_steps WHERE job_id=? AND name='approval'",
+                        (job_id,),
+                    ).fetchone()[0]
+                )
+            metadata = self.upload_metadata(job, approved)
+            if approved.get("artifact") != fingerprint(
+                video, Metadata.model_validate(metadata).payload()
+            ):
+                with self.store.connect() as db:
+                    db.execute(
+                        "UPDATE workflow_steps SET status='pending' WHERE job_id=? AND name='approval'",
+                        (job_id,),
+                    )
+                raise ValueError("Approval invalidated by artifact or metadata change")
+            return self.publisher.upload(
+                job_id, video, "private", metadata=metadata, approval=approved["artifact"]
+            )
         raise ValueError("Unsupported step")
 
 
@@ -299,13 +341,29 @@ def register_routes(app, workflow, authorize):
                 "UPDATE workflow_steps SET status=?,result=? WHERE job_id=? AND name='approval'",
                 (
                     "succeeded" if body.approved else "pending",
-                    json.dumps({"owner_reviewed": body.approved, "privacy": "private"}),
+                    json.dumps(
+                        {
+                            "owner_reviewed": body.approved,
+                            "privacy": "private",
+                            "made_for_kids": body.made_for_kids,
+                            "synthetic_media": body.synthetic_media,
+                            "artifact": fingerprint(
+                                workflow.assets / f"{job_id}.mp4",
+                                Metadata.model_validate(
+                                    workflow.upload_metadata(state["job"], body.model_dump())
+                                ).payload(),
+                            ),
+                        }
+                    ),
                     job_id,
                 ),
             )
             db.execute(
                 "INSERT INTO audit_events(job_id,action) VALUES(?,?)",
-                (job_id, "approved_private" if body.approved else "approval_revoked"),
+                (
+                    job_id,
+                    "approved_private:simulated" if body.approved else "approval_revoked:simulated",
+                ),
             )
         return workflow.snapshot(job_id)
 

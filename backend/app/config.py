@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     environment: Literal["local", "production"] = "local"
     database_path: str = "data/lazy-capitalist.db"
     api_token: SecretStr | None = None
+    youtube_enabled: bool = False
+    youtube_token_key: SecretStr | None = None
+    youtube_client_id: str = ""
+    youtube_client_secret: SecretStr | None = None
+    youtube_redirect_uri: str = ""
     ai_provider: Literal["mock", "openai"] = "mock"
     allow_paid_ai: bool = False
     openai_api_key: SecretStr | None = None

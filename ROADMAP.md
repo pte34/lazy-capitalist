@@ -17,3 +17,5 @@
 - Additional agents only when a simple workflow no longer suffices
 
 The owner-authorized local video test MVP is implemented. Actual YouTube OAuth/upload, final script-based video production and production deployment remain open.
+
+Private YouTube preparation: offline-tested resumable adapter library and encrypted OAuth/session storage now exist; runtime selection, owner-bound callback receiver, project/quota verification and any authorized live private test remain open. See docs/STATUS.md and docs/YOUTUBE.md.

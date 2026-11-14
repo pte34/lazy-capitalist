@@ -12,3 +12,5 @@
 - Clearly mark demo metrics, mock costs, estimated costs, reserved costs and actual revenue. Keep USD costs separate from CHF figures.
 - Document test evidence and remaining gaps. Never fabricate integrations, test results or deployments.
 - Keep this file compact (under 8,000 characters).
+- Completion reports: use the seven-section copyable `LAZY CAPITALIST – CODEX HANDOFF` convention documented in docs/STATUS.md; retain these development instructions.
+- Real YouTube library stays disabled/unwired; never run OAuth, token operations or uploads without explicit authorization. See docs/YOUTUBE.md for protected state and reconciliation requirements.

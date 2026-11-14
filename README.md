@@ -89,3 +89,5 @@ Paid AI requires positive JOB_BUDGET_USD, DAILY_BUDGET_USD, MONTHLY_BUDGET_USD a
 Quality checks currently flag repeated sentences and require owner review for unsupported claims and original value. They do not fact-check or guarantee platform-policy compliance. Model, prompt version, hook, script length, test format and cost records persist; `concept-v1` is the baseline identifier, with no automatic prompt/code changes. Performance and revenue remain unknown.
 
 Browser verification for the studio: with backend :8000 and dashboard dev server :3000, run `uv run --with playwright python tests/smoke_private_mvp.py` after installing Chromium as described above.
+
+The offline-tested real YouTube adapter library is now implemented but deliberately **not connected to application OAuth/upload routes**. Runtime publishing remains simulated. Setup variables, encrypted storage requirements, approval binding, reconciliation limits and official API references: [docs/YOUTUBE.md](docs/YOUTUBE.md). Current phase/cloud gaps and the handoff reporting convention: [docs/STATUS.md](docs/STATUS.md).
