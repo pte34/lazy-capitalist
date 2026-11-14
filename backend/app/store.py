@@ -10,6 +10,7 @@ class Store:
         self.path = path
         with self.connect() as db:
             db.executescript("""
+            CREATE TABLE IF NOT EXISTS storyboards (job_id TEXT PRIMARY KEY REFERENCES video_jobs(id), script TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS system_state (id INTEGER PRIMARY KEY CHECK(id=1), paused INTEGER NOT NULL);
             INSERT OR IGNORE INTO system_state VALUES(1,0);
             CREATE TABLE IF NOT EXISTS job_metadata (job_id TEXT PRIMARY KEY, model TEXT NOT NULL, prompt_version TEXT NOT NULL);

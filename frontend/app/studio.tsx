@@ -56,12 +56,13 @@ export default function Studio() {
     <section className="panel agents">
       <div className="panel-title">
         <h3>Lokales Video-Teststudio</h3>
-        <span className="pill">SIMULATION · KEIN YOUTUBE-UPLOAD</span>
+        <span className="pill">LOKALES VIDEO · UPLOAD SIMULIERT</span>
       </div>
       <p className="muted">
-        Synthetische Testmedien, keine fertige Produktion. Fakten und eigener
-        Mehrwert benötigen menschliche Prüfung. Kosten und Einnahmen werden
-        nicht simuliert als Ist-Werte ausgewiesen.
+        Echtes skriptbasiertes Textvideo mit lokalen Szenen. Ohne Voiceover oder
+        externes Bildmaterial. Fakten und eigener Mehrwert benötigen menschliche
+        Prüfung. Kosten und Einnahmen werden nicht simuliert als Ist-Werte
+        ausgewiesen.
       </p>
       <button disabled={busy} onClick={() => void refresh()}>
         Warteschlange aktualisieren
@@ -139,7 +140,7 @@ export default function Studio() {
                     controls
                     width="240"
                     src={`/api/jobs?path=${encodeURIComponent(`/jobs/${selected}/video`)}`}
-                    aria-label="Simulierte Video-Vorschau"
+                    aria-label="Lokale skriptbasierte Video-Vorschau"
                   />
                   <p>
                     <button
@@ -168,8 +169,8 @@ export default function Studio() {
       <p className="muted">
         Globale Pause verhindert neue Arbeit; bereits begonnene Schritte können
         abschliessen. YouTube-Adapter: implementiert, deaktiviert und nicht
-        verbunden. Fertige Produktion aus dem Skript: noch nicht implementiert.
-        Leistungsdaten und Einnahmen: unbekannt.
+        verbunden. Skriptbasierte Textproduktion verfügbar; Voiceover und
+        Bildproduktion fehlen. Leistungsdaten und Einnahmen: unbekannt.
       </p>
     </section>
   );

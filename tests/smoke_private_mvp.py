@@ -16,7 +16,7 @@ with sync_playwright() as p:
     page.locator("#queue option").filter(has_text=topic).wait_for(state="attached")
     page.locator("#queue").select_option(label=topic)
     page.get_by_role("button", name="Ausführen / fortsetzen").click()
-    page.get_by_label("Simulierte Video-Vorschau").wait_for()
+    page.get_by_label("Lokale skriptbasierte Video-Vorschau").wait_for()
     page.on("dialog", lambda d: d.accept())
     page.get_by_role("button", name="Nach Prüfung privat freigeben").click()
     page.get_by_text("approval: succeeded", exact=False).wait_for()

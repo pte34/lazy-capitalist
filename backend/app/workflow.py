@@ -1,8 +1,6 @@
 """Durable local MVP steps. No network rendering or publishing is enabled."""
 
-import hashlib
 import json
-import subprocess
 import time
 from pathlib import Path
 from typing import Literal, Protocol
@@ -11,6 +9,7 @@ from fastapi import Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from app.rendering import LocalRenderer, Storyboard
 from app.store import Store
 from app.youtube import Metadata, fingerprint
 
@@ -18,7 +17,7 @@ STEPS = ("quality", "media", "render", "preview", "approval", "upload")
 
 
 class Renderer(Protocol):
-    def render(self, job_id: str, destination: Path) -> dict: ...
+    def render(self, job_id: str, destination: Path, *, storyboard: Storyboard) -> dict: ...
 
 
 class Publisher(Protocol):
@@ -31,45 +30,6 @@ class Publisher(Protocol):
         metadata: dict,
         approval: str,
     ) -> dict: ...
-
-
-class LocalRenderer:
-    def render(self, job_id, destination):
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        temporary = destination.with_suffix(".tmp.mp4")
-        subprocess.run(
-            [
-                "ffmpeg",
-                "-nostdin",
-                "-y",
-                "-v",
-                "error",
-                "-f",
-                "lavfi",
-                "-i",
-                "color=c=0x275e46:s=360x640:r=12:d=10",
-                "-vf",
-                "drawtext=text='SIMULATED MEDIA':fontcolor=white:fontsize=24:x=(w-tw)/2:y=h/2",
-                "-c:v",
-                "libx264",
-                "-pix_fmt",
-                "yuv420p",
-                "-movflags",
-                "+faststart",
-                str(temporary),
-            ],
-            check=True,
-            timeout=60,
-            capture_output=True,
-        )
-        temporary.replace(destination)
-        return {
-            "simulation": True,
-            "duration_seconds": 10,
-            "format": "9:16",
-            "sha256": hashlib.sha256(destination.read_bytes()).hexdigest(),
-            "description": "Synthetic test slate; no narration or final content video",
-        }
 
 
 class SimulatedYouTube:
@@ -232,19 +192,32 @@ class Workflow:
             }
         if name == "media":
             return {
-                "simulation": True,
-                "source": "locally generated color slate",
+                "simulation": False,
+                "source": "locally generated scene backgrounds and installed DejaVu Sans font",
                 "rights": "Generated synthetic background; no third-party media",
                 "license": "No external media license required",
                 "attribution": None,
             }
         video = self.assets / f"{job_id}.mp4"
         if name == "render":
-            return self.renderer.render(job_id, video)
+            with self.store.connect() as db:
+                custom = db.execute(
+                    "SELECT script FROM storyboards WHERE job_id=?", (job_id,)
+                ).fetchone()
+            board = (
+                Storyboard.model_validate_json(custom[0])
+                if custom
+                else Storyboard.from_concept(concept)
+            )
+            return self.renderer.render(job_id, video, storyboard=board)
         if name == "preview":
             if not video.is_file():
                 raise ValueError("Missing preview")
-            return {"preview": f"/jobs/{job_id}/video", "simulation": True}
+            return {
+                "preview": f"/jobs/{job_id}/video",
+                "simulation": False,
+                "production_kind": "local_script_text",
+            }
         if name == "upload":
             with self.store.connect() as db:
                 approved = json.loads(
@@ -271,6 +244,32 @@ class Workflow:
 
 def register_routes(app, workflow, authorize):
     protected = [Depends(authorize)]
+
+    @app.put("/jobs/{job_id}/storyboard", dependencies=protected)
+    def set_storyboard(job_id: str, body: Storyboard):
+        workflow.snapshot(job_id)
+        with workflow.store.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            rows = db.execute(
+                "SELECT name,status FROM workflow_steps WHERE job_id=?", (job_id,)
+            ).fetchall()
+            if any(
+                r["status"] == "running" or (r["name"] == "upload" and r["status"] != "pending")
+                for r in rows
+            ):
+                raise HTTPException(409, "Active or attempted upload prevents artifact editing")
+            db.execute(
+                "INSERT OR REPLACE INTO storyboards VALUES(?,?)", (job_id, body.model_dump_json())
+            )
+            db.execute(
+                "UPDATE workflow_steps SET status='pending',attempts=0,result=NULL,error=NULL,next_retry=0 WHERE job_id=? AND name IN ('render','preview','approval')",
+                (job_id,),
+            )
+            db.execute(
+                "INSERT INTO audit_events(job_id,action) VALUES(?,?)",
+                (job_id, "storyboard_updated_approval_invalidated"),
+            )
+        return workflow.snapshot(job_id)
 
     @app.post("/jobs/{job_id}/cost-reconciliation", dependencies=protected)
     def cost_reconciliation(job_id: str, body: CostReconciliation):
