@@ -18,4 +18,6 @@
 
 The owner-authorized local video test MVP is implemented. Actual YouTube OAuth/upload, final script-based video production and production deployment remain open.
 
-Private YouTube preparation: offline-tested resumable adapter library and encrypted OAuth/session storage now exist; runtime selection, owner-bound callback receiver, project/quota verification and any authorized live private test remain open. See docs/STATUS.md and docs/YOUTUBE.md.
+Private YouTube preparation: offline-tested resumable adapter library and encrypted OAuth/session storage now exist; real-upload runtime selection and project/quota verification and any authorized live private test remain open. See docs/STATUS.md and docs/YOUTUBE.md.
+
+Local additions completed: owner-bound Desktop callback (mock HTTP only), script-dependent scene/text MP4 rendering and deterministic Zurich reports with mock notification history. Production hosting, real media/narration and authorized external verification remain open.

@@ -36,12 +36,16 @@ def register_oauth(app, settings, store, injected=None):
         )
 
     def local(request):
-        parsed = urlparse(settings.youtube_redirect_uri)
+        try:
+            parsed = urlparse(settings.youtube_redirect_uri)
+            port = parsed.port
+        except ValueError:
+            raise HTTPException(503, "Invalid local callback configuration") from None
         if (
             settings.environment != "local"
             or parsed.scheme != "http"
             or parsed.hostname != "127.0.0.1"
-            or not parsed.port
+            or not port
             or parsed.path != "/oauth/youtube/callback"
             or parsed.query
             or parsed.fragment

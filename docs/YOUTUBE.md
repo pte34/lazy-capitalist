@@ -1,6 +1,6 @@
 # Private YouTube adapter — disabled, offline-tested
 
-`app.youtube.YouTube` implements a resumable-upload library behind the existing Publisher contract. The application still selects `SimulatedYouTube`; there is no reachable OAuth callback, connect button or real-upload HTTP route. Setting YOUTUBE_ENABLED alone does not switch publishing. Do not wire or activate real use without a separate owner-authorized integration review and live-test approval.
+`app.youtube.YouTube` implements a resumable-upload library behind the existing Publisher contract. The application still selects `SimulatedYouTube`; a protected loopback OAuth receiver is implemented, but live OAuth is disabled and no real-upload HTTP route exists. Setting YOUTUBE_ENABLED alone does not switch publishing. Do not activate real use without separate owner authorization and live-test approval.
 
 ## Configuration and token protection
 
@@ -8,7 +8,7 @@ Server-only names: `YOUTUBE_ENABLED` (false), `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIE
 
 `YouTube.from_settings(store, settings)` fails closed when disabled or configuration is incomplete. Constructor injection and `httpx.MockTransport` support offline tests. No example contains actual credentials. Tests generate ephemeral keys.
 
-The intended application is a local owner-operated OAuth Desktop client using a registered loopback redirect on 127.0.0.1, PKCE S256, a random ten-minute single-use state, exact callback URI matching and the sole scope `youtube.upload`. `begin_oauth` and `callback` are library methods only: the secure loopback receiver, owner session binding and login UX still need implementation before use. No OAuth URL was opened in this task. Concurrent login beginnings intentionally replace the previous pending state.
+The intended application is a local owner-operated OAuth Desktop client using a registered loopback redirect on 127.0.0.1, PKCE S256, a random ten-minute single-use state, exact callback URI matching and the sole scope `youtube.upload`. `begin_oauth` and `callback` now back protected local receiver routes with owner-session binding; see the local callback section below. No OAuth URL was opened in this task. Concurrent login beginnings from the same owner session intentionally replace its previous pending state; foreign sessions cannot consume it.
 
 Access/refresh tokens, OAuth verifier/state, resumable session URLs and video IDs are encrypted in SQLite `youtube_vault`; keys stay external. Refresh rotates returned tokens; invalid-grant responses clear local tokens and require owner login. Revocation clears stored tokens only after confirmation; ambiguous revocation requires owner follow-up. HTTP debug logging is unsuitable for secret-bearing endpoints; httpx/httpcore INFO/DEBUG logs are suppressed by the adapter, and errors expose no upstream bodies or URLs.
 

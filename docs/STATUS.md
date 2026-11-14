@@ -1,34 +1,45 @@
 # Status — 2026-11-14
 
-## Verified handoff and GitHub
+## Verified baseline and task branch
 
-Starting commit 0759c77 verified on `feat/private-video-mvp` (not the supplied `feat/phase-1-foundation`); working tree was clean. History includes 4f62dc3 and empty base 61e47aa. Local work is preserved in commits and ignored Git bundles under work/.
+Started from verified clean commit 84fa8fa on feat/youtube-private-adapter, preserving 0759c77, 4f62dc3 and the empty main base. Current branch: feat/local-oauth-video-reporting. Separate commits implement A (6b1d077), B (436cf57) and C (c98ec01); final hardening/documentation follows. Local history is additionally backed up as ignored work/*.bundle files. Use git log/status for the final local SHA and dirty state.
 
-Current work branch: `feat/youtube-private-adapter`. Remote commit and PR are not confirmed. `git ls-remote origin` succeeds with no refs. No new write attempts were made because credentials/authorization have not changed.
+## Phase status
 
-The environment uses HTTPS and gh reports GH_TOKEN authentication as pte34; GITHUB_TOKEN absent, no repository credential helper, extraheader, askpass or Git config injection found; proxy environment present. GH_TOKEN use is confirmed for gh, but the exact Git HTTPS authentication injection is not observable locally and must not be inferred from gh alone. A read-only REST request returned HTTP 200 and repository push/admin flags. It accepted metadata-read permission and supplied no OAuth scope list. These identify account-level rights, not installation/token write permissions. Previous sanitized write errors remain `Permission to pte34/lazy-capitalist.git denied to pte34` (HTTP 403) and connector `Resource not accessible by integration` (HTTP 403). A workflow-specific write restriction is not isolated: even initial content creation was denied. General network connectivity works; proxy write policy versus token/app restriction cannot be conclusively distinguished from read-only probes.
+Phase 1 local foundation works. Remote acceptance remains OPEN: origin/main now has confirmed initial commit 6ad592c (README only), but application commits, draft PR, remote CI, hosted auth, PostgreSQL runtime integration and deployment remain unverified. The unchanged Supabase migration was not retested in this task; prior verification remains historical evidence only.
 
-Smallest owner action: authorize this environment's GitHub credential/app for this repository with Contents, Pull Requests and Workflows write permissions (or have its administrator confirm the proxy/write policy). Do not provide a token in chat. Then a single controlled push/draft-PR attempt can verify access. No permission bypass, force push, merge or deployment.
+A — Finished within local/mocked scope: protected Desktop loopback callback, strong bearer bootstrap, hashed one-hour HttpOnly/Lax owner sessions, encrypted owner-bound ten-minute OAuth/PKCE transactions, atomic state consumption, cancellation/error handling and callback query redaction. Live OAuth remains disabled; no real authentication or upload authorized/performed. Hosted OAuth is explicitly unsupported.
 
-## Phase 1 foundation
+B — Finished within local scope: genuine 540×960 multi-scene text video from a validated structured script, fixed local DejaVu font and generated backgrounds. Timing/text/resource bounds, subprocess timeouts, private temporary files, ffprobe validation, content hashes and approval invalidation are implemented. Prior artifacts are retained by hash. Voiceover and external visual assets remain absent; this is not full narrated AI video production.
 
-Local FastAPI, Next.js, deterministic scripts, SQL migrations, tests/locks and CI configuration exist. Cloud acceptance remains OPEN: remote commit, remote CI, draft PR, hosted auth and deployment have not been verified. PostgreSQL runtime adapter remains absent. Supabase migration was unchanged in this task; previous disposable PostgreSQL verification is historical, not rerun evidence.
+C — Finished within local/mock scope: immutable daily/weekly/monthly Zurich snapshots, equal elapsed comparison windows, Decimal USD categories, null revenue/ROI, startup/minute tick in the existing API process, seven-date catchup, idempotent reports and delivery claims, bundled mock payloads, bounded retries/recovery, masked recipient settings and alert cooldowns. Actual budget blocks and job failures generate warnings; failed notifications never recursively generate job warnings. No live message provider exists. Scheduling stops when the backend is stopped; no cloud uptime is claimed.
 
-## Local video MVP / Phase 2 preparation
+## Verification
 
-Implemented: persistent mock/local steps, cost reservations with job/day/month/lifetime limits, manual invoice reconciliation, bounded retries, pause, synthetic MP4 preview and simulated private receipt. New: artifact-bound approval and an explicitly disabled, encrypted, resumable YouTube adapter library. Runtime publisher is still simulated. No autonomous production prompt/code changes.
+Final backend suite: 66 passing tests. Python lint/format and frontend ESLint/build/TypeScript passed. Google HTTP was mocked; actual local FFmpeg/ffprobe was exercised. Browser smoke passed through script preview, protected callback rejection, report settings, mock delivery/history and mobile layout. An extracted example frame was visually inspected: centered readable text inside bounds. Staged Gitleaks scan recorded in final handoff. The existing Starlette/httpx test-client deprecation warning remains: changing clients would require an unnecessary dependency migration. No live Google, messaging, paid model, upload or cloud test occurred.
 
-Open, ordered:
-1. GitHub handoff: obtain scoped write authorization, push preserved commits, open draft PR; acceptance = matching remote SHA and successful linked CI.
-2. OAuth/owner integration: implement protected local callback receiver and owner session binding, wire reviewed settings and external key storage; acceptance = offline callback/state integration tests, then separately authorized private live test. No real login/upload authorized now.
-3. Real external reconciliation: operator-facing ambiguous/quota/expired-session resolution and confirmed channel targeting; acceptance = no replacement upload after unresolved timeout and explicit owner resolution evidence. Adapter does not promise exactly once.
-4. Real production video: synthetic color slate lacks storyboard-to-scenes, narrated audio/captions, actual visual assets and complete rights/source review. Smallest next local result = one deterministic script-driven MP4 with readable captions and duration checks, locally generated assets and no paid provider.
-5. Cloud operation: PostgreSQL runtime repository, owner auth, protected secrets, managed deployment approval and operational recovery. Configuration is not a verified deployment. More agents/platforms remain deferred.
+## GitHub blocker / smallest owner action
 
-## Validation
+No unchanged write attempt was repeated. A final read-only check discovered new remote main 6ad592c containing only the repository title; its history is preserved before one controlled feature-branch push attempt. Historical errors remain HTTP 403 (`Permission ... denied` and `Resource not accessible by integration`). Read-only metadata succeeded earlier; initial main 6ad592c is now confirmed, not an application deployment. gh used GH_TOKEN; no local Git helper/askpass/extraheader explained the exact HTTPS credential injection, and a proxy environment was present. Account push/admin flags do not prove this environment's token/app permissions. No credential or protection bypass is attempted.
 
-48 backend tests passed; Python lint/format and frontend ESLint/build/TypeScript checks passed. Browser smoke was not rerun in this task (only copy changed in the frontend; backend approval integration is covered by TestClient). Backend tests exercise HTTP mocks plus real local FFmpeg/ffprobe; frontend lint/build/types and staged secret scan are run locally. Live Google authentication/upload, Google quota/project verification and remote CI are deliberately not run. One upstream Starlette/httpx deprecation warning remains. No paid call or deployment.
+Owner: confirm/grant this environment's repository Contents, Pull Requests and Workflows write access, or have the administrator clarify proxy write policy; never paste tokens into chat. Then perform one authorized push, create a draft PR and verify matching SHA/CI. Do not merge or deploy automatically.
 
-## Report convention
+## Next tasks and acceptance
 
-Future task completion reports use one copyable block headed `LAZY CAPITALIST – CODEX HANDOFF` with seven numbered sections: (1) Stand: phase/open criteria, branch, local/remote commit, dirty state, PR/deployment; (2) implemented changes/paths; (3) actual verification, remote CI, simulated versus live and untested items; (4) prioritized open tasks with next step/acceptance criteria, separating current phase from later work; (5) blocker evidence and smallest owner action; (6) external actions and costs, never count simulation as real; (7) one bounded recommended next task with prerequisites. Preserve existing AGENTS.md instructions.
+1. Remote handoff: scoped write access, preserved history pushed, draft PR and successful CI linked. Required for Phase 1 remote acceptance.
+2. Local content quality: improve deterministic storyboard editing/preview UX; acceptance = one reviewed script-to-scenes artifact with explicit factual/originality review and unchanged approval binding. No external provider needed.
+3. Later external readiness: review Desktop client, fixed callback, protected keys, target channel/quota and owner-approved live-test plan before any login/upload. Acceptance = separately authorized private-only live result and reconciled attempt; no exactly-once claim.
+4. Later production: PostgreSQL runtime, hosted owner auth, managed secrets/operations and deployment approval. Narration and additional visual assets require their own rights/cost review.
+
+## Required future completion convention
+
+Use exactly one copyable text block headed `LAZY CAPITALIST – CODEX HANDOFF`, with eight sections:
+1. Stand — phase/open criteria, branch, local and confirmed remote SHA, dirty state, PR/CI, deployment.
+2. In diesem Auftrag umgesetzt — functions/paths/decisions; rate A/B/C when applicable.
+3. Verifikation — actual checks/results, missing checks/reasons, mocked versus real, browser/render inspection.
+4. Funktionsstatus — functional, simulated, implemented but externally unverified, missing.
+5. Blocker und Owner-Aktionen — evidence, remaining uncertainty and smallest action.
+6. Kosten und externe Aktionen — actual writes/services/paid calls/costs; never count simulation as real.
+7. Offene Arbeiten — priorities and verifiable acceptance criteria.
+8. Nächster empfohlener Auftrag — exactly one bounded goal with prerequisites/approvals.
+Preserve AGENTS.md and owner authorization boundaries.

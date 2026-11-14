@@ -2,7 +2,7 @@
 
 **Let AI work. Let money flow.**
 
-Phase 1 foundation for owner-controlled short-form content automation. Working local mock generation; no production video provider, real publishing, revenue integrations, deployment or paid calls. Local synthetic FFmpeg previews are available.
+Phase 1 foundation for owner-controlled short-form content automation. Working local mock generation; no production video provider, real publishing, revenue integrations, deployment or paid calls. Local script-dependent FFmpeg text videos are available.
 
 ## Run locally
 
@@ -73,7 +73,7 @@ Optional browser smoke test: with backend :8000, `npm run dev` on :3000 and `npm
 
 Install FFmpeg (including libx264 and drawtext) before running the backend. No new hosting or subscriptions are needed. Existing databases gain additive SQLite tables automatically; existing scripts/jobs are retained. The original Supabase migration is unchanged and is **not** a runtime adapter for these local tables.
 
-In the dashboard, generate a topic, open **Lokales Video-Teststudio**, refresh the queue, select a job, and run it. The workflow saves quality review → synthetic media provenance → FFmpeg test MP4 → preview. Inspect the preview and quality results, approve privately, then run again for a **simulated** private YouTube receipt. There is no actual YouTube upload, audio narration or finished content video. The synthetic slate intentionally does not represent a completed script-based production video.
+In the dashboard, generate a topic, open **Lokales Video-Teststudio**, refresh the queue, select a job, and run it. The workflow saves quality review → local media provenance → script-dependent multi-scene FFmpeg MP4 → preview. Inspect the preview and quality results, approve privately, then run again for a **simulated** private YouTube receipt. There is no actual YouTube upload or audio narration. This is genuine local text-video production, not a complete narrated AI video pipeline.
 
 API (same bearer protection as existing jobs):
 - `GET /jobs/{id}/workflow`, `POST /jobs/{id}/run`
@@ -90,4 +90,8 @@ Quality checks currently flag repeated sentences and require owner review for un
 
 Browser verification for the studio: with backend :8000 and dashboard dev server :3000, run `uv run --with playwright python tests/smoke_private_mvp.py` after installing Chromium as described above.
 
-The offline-tested real YouTube adapter library is now implemented but deliberately **not connected to application OAuth/upload routes**. Runtime publishing remains simulated. Setup variables, encrypted storage requirements, approval binding, reconciliation limits and official API references: [docs/YOUTUBE.md](docs/YOUTUBE.md). Current phase/cloud gaps and the handoff reporting convention: [docs/STATUS.md](docs/STATUS.md).
+The offline-tested real YouTube adapter library is now implemented but connected to a protected local Desktop OAuth callback, with live OAuth disabled and **no real-upload HTTP route**. Runtime publishing remains simulated. Setup variables, encrypted storage requirements, approval binding, reconciliation limits and official API references: [docs/YOUTUBE.md](docs/YOUTUBE.md). Current phase/cloud gaps and the handoff reporting convention: [docs/STATUS.md](docs/STATUS.md).
+
+## Current local additions
+
+Owner-bound Desktop OAuth callbacks are implemented but live OAuth stays disabled. See docs/YOUTUBE.md; never perform a Google login without separate approval. The local renderer now produces genuine script-dependent text scenes, without voiceover/external imagery: docs/LOCAL_VIDEO.md and examples/storyboard.json. Reports and mock notifications use the same local process and database: docs/REPORTING.md. Strong owner API_TOKEN and matching server-only BACKEND_API_TOKEN are required for reporting management. No provider messages, uploads or deployments are enabled by these additions.

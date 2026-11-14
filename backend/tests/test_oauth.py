@@ -132,3 +132,15 @@ def test_cancel_token_error_redirect_and_expired_session(setup):
         ).status_code
         == 503
     )
+
+
+def test_invalid_redirect_port_is_safely_blocked(setup):
+    client, adapter, settings, calls = setup
+    settings.youtube_redirect_uri = "http://127.0.0.1:bad/oauth/youtube/callback"
+    assert (
+        client.post(
+            "/owner/session", headers={"Origin": ORIGIN, "Authorization": "Bearer " + TOKEN}
+        ).status_code
+        == 503
+    )
+    assert not calls
