@@ -77,6 +77,7 @@ class Plan(BaseModel):
 
 
 class Input(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     text: str = Field(min_length=3, max_length=3000)
 
 
@@ -249,6 +250,12 @@ class Commands:
             if not row:
                 raise HTTPException(404, "Order not found")
             old = Plan.model_validate_json(row[0])
+            held = db.execute(
+                "SELECT COALESCE(SUM(MAX(reserved_micro,actual_micro)),0) FROM order_budget WHERE order_id=?",
+                (order_id,),
+            ).fetchone()[0]
+            if micro(plan.budget_chf) < held:
+                raise HTTPException(402, "New cap is below committed reservations/costs")
             if plan.budget_chf > old.budget_chf:
                 raise HTTPException(403, "Budget increases require separate approval")
             videos = db.execute(
@@ -350,6 +357,8 @@ class Commands:
             else "Plan a small experiment, check the result and document its limits."
         )
         concept.script = f"{concept.hook} {prefix} {own} {plan.notes}".strip()
+        if any(t.casefold() in concept.script.casefold() for t in plan.excluded_topics):
+            raise HTTPException(409, "Generated text conflicts with exclusions; edit owner text")
         concept.duration_seconds = plan.length_seconds
         pieces = textwrap.wrap(concept.script, width=140)
         n = max(2, math.ceil(plan.length_seconds / 15), len(pieces))

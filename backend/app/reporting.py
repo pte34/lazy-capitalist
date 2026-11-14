@@ -127,7 +127,64 @@ class Reporting:
             "SELECT action FROM audit_events WHERE created_at>=? AND created_at<?", (lo, hi)
         ).fetchall()
         action = [r[0] for r in events]
+        command_summary = {
+            "orders_created": 0,
+            "videos_linked": 0,
+            "statuses": {},
+            "currency": "CHF",
+            "estimated_external_api": "0.000000",
+            "reserved": "0.000000",
+            "actual_recorded": "0.000000",
+            "compute_energy_cost": "unknown",
+        }
+        if db.execute("SELECT 1 FROM sqlite_master WHERE name='commands'").fetchone():
+            commands = db.execute(
+                "SELECT id,status FROM commands WHERE created_at>=? AND created_at<?", (lo, hi)
+            ).fetchall()
+            command_summary["orders_created"] = len(commands)
+            for command in commands:
+                command_summary["statuses"][command["status"]] = (
+                    command_summary["statuses"].get(command["status"], 0) + 1
+                )
+                command_summary["videos_linked"] += db.execute(
+                    "SELECT count(*) FROM command_videos WHERE order_id=?", (command["id"],)
+                ).fetchone()[0]
+            ledger = db.execute(
+                "SELECT COALESCE(SUM(estimate_micro),0),COALESCE(SUM(reserved_micro),0),COALESCE(SUM(actual_micro),0) FROM order_budget WHERE created_at>=? AND created_at<?",
+                (lo, hi),
+            ).fetchone()
+            for field, value in zip(
+                ("estimated_external_api", "reserved", "actual_recorded"), ledger, strict=True
+            ):
+                command_summary[field] = format(Decimal(value) / 1_000_000, ".6f")
+        platform_summary = {
+            "reported_critical_events": 0,
+            "mock_critical_events": 0,
+            "upload_errors": 0,
+            "blocked_channels_current": [],
+            "automatic_strike_detection": False,
+        }
+        if db.execute("SELECT 1 FROM sqlite_master WHERE name='platform_events'").fetchone():
+            signals = db.execute(
+                "SELECT kind,payload FROM platform_events WHERE created_at>=? AND created_at<?",
+                (lo, hi),
+            ).fetchall()
+            for signal in signals:
+                if signal["kind"] == "upload_error":
+                    platform_summary["upload_errors"] += 1
+                elif json.loads(signal["payload"])["source"] == "mock_platform_signal":
+                    platform_summary["mock_critical_events"] += 1
+                else:
+                    platform_summary["reported_critical_events"] += 1
+            platform_summary["blocked_channels_current"] = [
+                dict(r)
+                for r in db.execute(
+                    "SELECT platform,channel_id FROM platform_blocks WHERE blocked=1"
+                )
+            ]
         return {
+            "commands": command_summary,
+            "platform_warnings": platform_summary,
             "jobs_created": len(rows),
             "mock_script_jobs": sum(r["provider"] == "mock" for r in rows),
             "jobs_failed_current": sum(r["status"] == "failed" for r in rows),

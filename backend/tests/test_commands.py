@@ -172,3 +172,19 @@ def test_chf_daily_and_monthly_independently_block(tmp_path, daily, monthly):
             source="test-only prices",
         )
     assert error.value.status_code == 402
+
+
+def test_cannot_reduce_cap_below_reserved_retry_costs(tmp_path):
+    settings = Settings(database_path=str(tmp_path / "db"), _env_file=None)
+    store = Store(settings.database_path)
+    commands = Commands(store, Workflow(store), settings)
+    order = commands.create(TEXT, "cap-update")["id"]
+    budget = OrderBudget(store, daily=3, monthly=3)
+    budget.reserve(
+        order, "held", {k: ".1" for k in CATEGORIES}, verified=True, source="synthetic test"
+    )
+    lowered = parse(TEXT)
+    lowered.budget_chf = Decimal("1")
+    with pytest.raises(HTTPException) as error:
+        commands.update(order, lowered)
+    assert error.value.status_code == 402
